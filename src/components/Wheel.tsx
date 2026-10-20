@@ -1,7 +1,11 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react'
 import { getSliceTextStyles, truncateText } from '../utils/color'
 
-interface WheelProps {
+export interface WheelHandle {
+  spin: () => void
+}
+
+export interface WheelProps {
   items: string[]
   colors: string[]
   spinDuration: number // seconds
@@ -11,15 +15,18 @@ interface WheelProps {
   onSpinEnd: (winner: string) => void
 }
 
-export const Wheel: React.FC<WheelProps> = ({
-  items,
-  colors,
-  spinDuration,
-  isSpinning,
-  darkMode,
-  onSpinStart,
-  onSpinEnd,
-}) => {
+export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
+  {
+    items,
+    colors,
+    spinDuration,
+    isSpinning,
+    darkMode,
+    onSpinStart,
+    onSpinEnd,
+  },
+  ref
+) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
 
@@ -432,6 +439,14 @@ export const Wheel: React.FC<WheelProps> = ({
     getSliceUnderPointer,
   ])
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      spin,
+    }),
+    [spin]
+  )
+
   const handleCanvasClick = () => {
     if (isSpinning || items.length === 0) return
     spin()
@@ -493,4 +508,4 @@ export const Wheel: React.FC<WheelProps> = ({
       )}
     </div>
   )
-}
+})

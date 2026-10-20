@@ -5,6 +5,7 @@ import { Wheel } from './components/Wheel'
 import { SidebarTabs } from './components/SidebarTabs'
 import { WinnerModal } from './components/WinnerModal'
 import { SettingsModal } from './components/SettingsModal'
+import { GroupDivider } from './components/GroupDivider'
 import type { WheelSettings, WinnerRecord } from './types'
 import { WHEEL_THEMES } from './utils/themes'
 import { PRESET_LISTS } from './utils/presets'
@@ -59,6 +60,7 @@ export function App() {
   const [currentWinner, setCurrentWinner] = useState<string | null>(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false)
   const [sidebarTab, setSidebarTab] = useState<'entries' | 'results'>('entries')
+  const [appMode, setAppMode] = useState<'group-divider' | 'custom-wheel'>('group-divider')
 
   // Toggle dark class on root document
   useEffect(() => {
@@ -223,118 +225,129 @@ export function App() {
       {/* Top Header Navigation */}
       <Header
         darkMode={settings.darkMode}
+        activeMode={appMode}
+        onSelectMode={setAppMode}
         onToggleDarkMode={() =>
           setSettings((prev) => ({ ...prev, darkMode: !prev.darkMode }))
         }
         onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
-      {/* Main Workspace Layout */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-        {/* Left Stage: Wheel Area */}
-        <section
-          className={`lg:col-span-7 xl:col-span-8 flex flex-col items-center justify-center rounded-2xl p-4 sm:p-6 border shadow-sm relative overflow-hidden transition-colors min-h-[460px] lg:min-h-[600px] ${
-            settings.darkMode
-              ? 'bg-slate-900 border-slate-700'
-              : 'bg-white border-slate-300'
-          }`}
-        >
-          {/* Canvas Wheel Component */}
-          <Wheel
-            items={items}
-            colors={currentTheme.colors}
-            spinDuration={settings.spinDuration}
-            isSpinning={isSpinning}
-            darkMode={settings.darkMode}
-            onSpinStart={handleSpinStart}
-            onSpinEnd={handleSpinEnd}
-          />
+      {/* Conditional Stage: Group Divider (35 Students) vs Custom Free Wheel */}
+      {appMode === 'group-divider' ? (
+        <main className="flex-1 w-full">
+          <GroupDivider darkMode={settings.darkMode} />
+        </main>
+      ) : (
+        /* Main Custom Wheel Workspace Layout */
+        <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+          {/* Left Stage: Wheel Area */}
+          <section
+            className={`lg:col-span-7 xl:col-span-8 flex flex-col items-center justify-center rounded-2xl p-4 sm:p-6 border shadow-sm relative overflow-hidden transition-colors min-h-[460px] lg:min-h-[600px] ${
+              settings.darkMode
+                ? 'bg-slate-900 border-slate-700'
+                : 'bg-white border-slate-300'
+            }`}
+          >
+            {/* Canvas Wheel Component */}
+            <Wheel
+              items={items}
+              colors={currentTheme.colors}
+              spinDuration={settings.spinDuration}
+              isSpinning={isSpinning}
+              darkMode={settings.darkMode}
+              onSpinStart={handleSpinStart}
+              onSpinEnd={handleSpinEnd}
+            />
 
-          {/* Quick Instruction with High-Contrast Text */}
-          <div className="mt-3.5 flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 font-bold">
-            <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 bg-slate-200 dark:bg-slate-800 rounded-md border border-slate-400 dark:border-slate-600 font-mono text-[11px] font-extrabold shadow-2xs">
-              SPASI
-            </span>
-            <span className="hidden sm:inline">atau klik roda untuk memutar</span>
-            <span className="sm:hidden font-extrabold">Ketuk roda untuk memutar</span>
-          </div>
-
-          {/* Persistent Winner Banner Card (Ultra High Contrast in White Mode) */}
-          {history.length > 0 && !isSpinning && (
-            <div className="mt-4 w-full max-w-lg p-3.5 sm:p-4 rounded-2xl border-2 border-amber-400 bg-amber-50 dark:bg-amber-950/60 dark:border-amber-500 shadow-sm flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-2 duration-150">
-              <div className="flex items-center gap-3 truncate">
-                <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 shadow-xs">
-                  <Trophy className="w-5 h-5 font-black" />
-                </div>
-                <div className="truncate">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-300 bg-amber-200/80 dark:bg-amber-900/60 px-2 py-0.5 rounded-md">
-                      Putaran #{history[0].round} • Pemenang Terakhir
-                    </span>
-                    <span className="text-[11px] text-slate-600 dark:text-slate-400 font-semibold">
-                      {history[0].timestamp}
-                    </span>
-                  </div>
-                  <div className="text-xl sm:text-2xl font-black text-slate-950 dark:text-white truncate mt-0.5">
-                    {history[0].name}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => setCurrentWinner(history[0].name)}
-                  className="px-3 py-1.5 text-xs font-bold rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-900 dark:text-white transition-colors cursor-pointer shadow-xs"
-                  title="Lihat modal perayaan pemenang"
-                >
-                  Lihat
-                </button>
-                {settings.showRemoveButton && (
-                  <button
-                    onClick={() => handleRemoveWinner(history[0].name)}
-                    className="px-3 py-1.5 text-xs font-bold rounded-lg bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white transition-colors cursor-pointer shadow-xs"
-                    title="Hapus pemenang ini dari daftar roda"
-                  >
-                    Hapus
-                  </button>
-                )}
-              </div>
+            {/* Quick Instruction with High-Contrast Text */}
+            <div className="mt-3.5 flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 font-bold">
+              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 bg-slate-200 dark:bg-slate-800 rounded-md border border-slate-400 dark:border-slate-600 font-mono text-[11px] font-extrabold shadow-2xs">
+                SPASI
+              </span>
+              <span className="hidden sm:inline">atau klik roda untuk memutar</span>
+              <span className="sm:hidden font-extrabold">Ketuk roda untuk memutar</span>
             </div>
-          )}
-        </section>
 
-        {/* Right Stage: Sidebar Tabs (Entri & Hasil) */}
-        <section className="lg:col-span-5 xl:col-span-4 h-full min-h-[460px] lg:min-h-[600px] flex flex-col">
-          <SidebarTabs
-            items={items}
-            history={history}
-            activeTab={sidebarTab}
-            disabled={isSpinning}
-            darkMode={settings.darkMode}
-            onTabChange={setSidebarTab}
-            onChangeItems={setItems}
-            onShuffle={handleShuffle}
-            onSort={handleSort}
-            onClearItems={handleClearItems}
-            onClearHistory={handleClearHistory}
-            onRemoveHistoryItem={handleRemoveHistoryItem}
-          />
-        </section>
-      </main>
+            {/* Persistent Winner Banner Card (Ultra High Contrast in White Mode) */}
+            {history.length > 0 && !isSpinning && (
+              <div className="mt-4 w-full max-w-lg p-3.5 sm:p-4 rounded-2xl border-2 border-amber-400 bg-amber-50 dark:bg-amber-950/60 dark:border-amber-500 shadow-sm flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                <div className="flex items-center gap-3 truncate">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 shadow-xs">
+                    <Trophy className="w-5 h-5 font-black" />
+                  </div>
+                  <div className="truncate">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-300 bg-amber-200/80 dark:bg-amber-900/60 px-2 py-0.5 rounded-md">
+                        Putaran #{history[0].round} • Pemenang Terakhir
+                      </span>
+                      <span className="text-[11px] text-slate-600 dark:text-slate-400 font-semibold">
+                        {history[0].timestamp}
+                      </span>
+                    </div>
+                    <div className="text-xl sm:text-2xl font-black text-slate-950 dark:text-white truncate mt-0.5">
+                      {history[0].name}
+                    </div>
+                  </div>
+                </div>
 
-      {/* Modals */}
-      <WinnerModal
-        winner={currentWinner}
-        round={history.length}
-        remainingCount={items.length}
-        winningMessage={settings.winningMessage}
-        confettiEnabled={settings.confettiEnabled}
-        showRemoveButton={settings.showRemoveButton}
-        darkMode={settings.darkMode}
-        onClose={() => setCurrentWinner(null)}
-        onRemoveWinner={handleRemoveWinner}
-        onSpinAgain={handleSpinAgain}
-      />
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => setCurrentWinner(history[0].name)}
+                    className="px-3 py-1.5 text-xs font-bold rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-900 dark:text-white transition-colors cursor-pointer shadow-xs"
+                    title="Lihat modal perayaan pemenang"
+                  >
+                    Lihat
+                  </button>
+                  {settings.showRemoveButton && (
+                    <button
+                      onClick={() => handleRemoveWinner(history[0].name)}
+                      className="px-3 py-1.5 text-xs font-bold rounded-lg bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white transition-colors cursor-pointer shadow-xs"
+                      title="Hapus pemenang ini dari daftar roda"
+                    >
+                      Hapus
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Right Stage: Sidebar Tabs (Entri & Hasil) */}
+          <section className="lg:col-span-5 xl:col-span-4 h-full min-h-[460px] lg:min-h-[600px] flex flex-col">
+            <SidebarTabs
+              items={items}
+              history={history}
+              activeTab={sidebarTab}
+              disabled={isSpinning}
+              darkMode={settings.darkMode}
+              onTabChange={setSidebarTab}
+              onChangeItems={setItems}
+              onShuffle={handleShuffle}
+              onSort={handleSort}
+              onClearItems={handleClearItems}
+              onClearHistory={handleClearHistory}
+              onRemoveHistoryItem={handleRemoveHistoryItem}
+            />
+          </section>
+        </main>
+      )}
+
+      {/* Modals for Custom Wheel Mode */}
+      {appMode === 'custom-wheel' && (
+        <WinnerModal
+          winner={currentWinner}
+          round={history.length}
+          remainingCount={items.length}
+          winningMessage={settings.winningMessage}
+          confettiEnabled={settings.confettiEnabled}
+          showRemoveButton={settings.showRemoveButton}
+          darkMode={settings.darkMode}
+          onClose={() => setCurrentWinner(null)}
+          onRemoveWinner={handleRemoveWinner}
+          onSpinAgain={handleSpinAgain}
+        />
+      )}
 
       <SettingsModal
         isOpen={isSettingsOpen}
