@@ -8,6 +8,8 @@ interface WinnerModalProps {
   remainingCount: number
   winningMessage: string
   confettiEnabled: boolean
+  showRemoveButton: boolean
+  darkMode: boolean
   onClose: () => void
   onRemoveWinner: (name: string) => void
   onSpinAgain: () => void
@@ -19,6 +21,8 @@ export const WinnerModal: React.FC<WinnerModalProps> = ({
   remainingCount,
   winningMessage,
   confettiEnabled,
+  showRemoveButton,
+  darkMode,
   onClose,
   onRemoveWinner,
   onSpinAgain,
@@ -30,28 +34,28 @@ export const WinnerModal: React.FC<WinnerModalProps> = ({
     const duration = 2.5 * 1000
     const end = Date.now() + duration
 
-    // 1. Initial big blast
+    // Initial big blast
     confetti({
-      particleCount: 100,
-      spread: 80,
+      particleCount: 110,
+      spread: 90,
       origin: { y: 0.6 },
     })
 
-    // 2. Continuous side cannons
+    // Continuous side cannons
     const interval: number = window.setInterval(() => {
       if (Date.now() > end) {
         return clearInterval(interval)
       }
       confetti({
-        particleCount: 30,
+        particleCount: 35,
         angle: 60,
-        spread: 55,
+        spread: 60,
         origin: { x: 0, y: 0.7 },
       })
       confetti({
-        particleCount: 30,
+        particleCount: 35,
         angle: 120,
-        spread: 55,
+        spread: 60,
         origin: { x: 1, y: 0.7 },
       })
     }, 250)
@@ -63,74 +67,94 @@ export const WinnerModal: React.FC<WinnerModalProps> = ({
 
   const displayMessage = winningMessage
     ? winningMessage.replace('{name}', winner)
-    : `Selamat kepada ${winner}!`
+    : 'Kami punya pemenang!'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
       <div
-        className="relative w-full max-w-lg bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-700/80 rounded-3xl p-6 sm:p-8 text-white shadow-2xl text-center transform transition-all scale-100 animate-in zoom-in-95 duration-200"
+        className={`relative w-full max-w-md rounded-3xl p-6 sm:p-8 text-center shadow-2xl border transform transition-all scale-100 animate-in zoom-in-95 duration-150 ${
+          darkMode
+            ? 'bg-slate-900 border-slate-700 text-white shadow-black/60'
+            : 'bg-white border-slate-200 text-slate-800 shadow-xl'
+        }`}
         role="dialog"
         aria-modal="true"
       >
         {/* Close Button Top Right */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white hover:bg-slate-800/80 rounded-full transition-colors"
+          className={`absolute top-4 right-4 p-2 rounded-full transition-colors ${
+            darkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+          }`}
           title="Tutup (Esc)"
         >
           <X className="w-5 h-5" />
         </button>
 
-        {/* Trophy Icon with Glowing Rings */}
-        <div className="relative inline-flex items-center justify-center w-20 h-20 mb-4 bg-gradient-to-tr from-amber-500 to-yellow-300 rounded-full text-slate-950 shadow-lg shadow-amber-500/30">
-          <Trophy className="w-10 h-10 animate-bounce" />
-          <div className="absolute inset-0 rounded-full border-2 border-yellow-200/50 animate-ping opacity-40" />
+        {/* Trophy Icon */}
+        <div className="relative inline-flex items-center justify-center w-16 h-16 mb-3 bg-gradient-to-tr from-amber-500 to-yellow-300 rounded-2xl text-slate-950 shadow-md shadow-amber-500/30">
+          <Trophy className="w-8 h-8 animate-bounce" />
         </div>
 
         {/* Round Badge */}
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 mb-2 text-xs font-semibold tracking-wide uppercase bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded-full">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 mb-2 text-xs font-semibold tracking-wide uppercase bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-full">
           <Sparkles className="w-3.5 h-3.5" />
           Putaran #{round}
         </div>
 
-        {/* Custom Winning Message */}
-        <p className="text-sm text-slate-300 mb-1">{displayMessage}</p>
+        {/* Winning Headline (Wheel of Names Style) */}
+        <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">
+          {displayMessage}
+        </h3>
 
         {/* Big Winning Name Display */}
-        <div className="my-5 p-4 sm:p-6 bg-slate-800/70 border border-slate-700 rounded-2xl shadow-inner">
-          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-200 to-yellow-400 break-words drop-shadow">
+        <div
+          className={`my-4 p-4 sm:p-5 rounded-2xl border shadow-inner ${
+            darkMode
+              ? 'bg-slate-950/60 border-slate-800'
+              : 'bg-slate-50 border-slate-200'
+          }`}
+        >
+          <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-blue-600 dark:text-yellow-400 break-words">
             {winner}
           </h2>
         </div>
 
-        <p className="text-xs text-slate-400 mb-6">
-          Tersisa {remainingCount} nama di dalam roda putar
+        <p className="text-xs text-slate-400 dark:text-slate-500 mb-5">
+          Tersisa {remainingCount} nama di roda putar
         </p>
 
-        {/* Action Buttons */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <button
-            onClick={() => onRemoveWinner(winner)}
-            className="flex items-center justify-center gap-2 px-4 py-3 bg-rose-600/90 hover:bg-rose-500 active:bg-rose-700 text-white font-medium text-sm rounded-xl border border-rose-500/30 shadow-lg shadow-rose-900/30 transition-all hover:scale-[1.02]"
-          >
-            <Trash2 className="w-4 h-4" />
-            Hapus Pemenang
-          </button>
+        {/* Action Buttons (Wheel of Names Style: Tutup & Hapus) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {showRemoveButton && (
+            <button
+              onClick={() => onRemoveWinner(winner)}
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md transition-all hover:scale-[1.02]"
+              title="Hapus nama pemenang dari roda"
+            >
+              <Trash2 className="w-4 h-4" />
+              Hapus
+            </button>
+          )}
 
           <button
-            onClick={onSpinAgain}
-            className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-medium text-sm rounded-xl border border-blue-400/30 shadow-lg shadow-blue-900/30 transition-all hover:scale-[1.02]"
+            onClick={onClose}
+            className={`flex items-center justify-center gap-2 px-4 py-3 font-bold text-xs rounded-xl border transition-all hover:scale-[1.02] ${
+              darkMode
+                ? 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+            }`}
           >
-            <RotateCw className="w-4 h-4" />
-            Putar Lagi
+            Tutup
           </button>
         </div>
 
         <button
-          onClick={onClose}
-          className="mt-3 w-full py-2.5 text-xs text-slate-400 hover:text-slate-200 font-medium transition-colors"
+          onClick={onSpinAgain}
+          className="mt-3 inline-flex items-center justify-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold"
         >
-          Biarkan & Tutup Jendela
+          <RotateCw className="w-3.5 h-3.5" />
+          Putar Lagi Sekarang
         </button>
       </div>
     </div>

@@ -2,89 +2,79 @@ import type { WheelTheme } from '../types'
 
 export const WHEEL_THEMES: WheelTheme[] = [
   {
-    id: 'rainbow-classic',
-    name: 'Pelangi Klasik (Wheel of Names)',
+    id: 'classic-wheelofnames',
+    name: 'Wheel of Names Klasik',
     colors: [
+      '#3369E8', // Blue
+      '#D50F25', // Red
+      '#EEB211', // Yellow
+      '#009925', // Green
+      '#FF6D00', // Orange
+      '#9C27B0', // Purple
+      '#00BCD4', // Cyan
+      '#E91E63', // Pink
+    ],
+  },
+  {
+    id: 'google-vibrant',
+    name: 'Google 4 Warna',
+    colors: [
+      '#4285F4', // Blue
       '#EA4335', // Red
       '#FBBC05', // Yellow
       '#34A853', // Green
-      '#4285F4', // Blue
-      '#FF6D01', // Orange
-      '#46BDC6', // Cyan
-      '#7B1FA2', // Purple
-      '#E91E63', // Pink
+    ],
+  },
+  {
+    id: 'pastel-soft',
+    name: 'Pastel Lembut',
+    colors: [
+      '#B5E2FA',
+      '#F9BEC7',
+      '#FFDFBA',
+      '#FFFFBA',
+      '#BAFFC9',
+      '#BAE1FF',
+      '#E8D7FF',
+      '#FFC6FF',
     ],
   },
   {
     id: 'neon-cyber',
     name: 'Neon Cyberpunk',
     colors: [
-      '#00f0ff', // Electric cyan
-      '#ff0055', // Hot magenta
-      '#7928ca', // Deep purple
-      '#00ff66', // Neon green
-      '#ffbe0b', // Electric yellow
-      '#ff007f', // Vivid pink
-      '#3a86ff', // Bright blue
-      '#fb5607', // Neon orange
+      '#00F0FF',
+      '#FF0055',
+      '#7928CA',
+      '#00FF66',
+      '#FFBE0B',
+      '#3A86FF',
     ],
   },
   {
-    id: 'pastel-candy',
-    name: 'Pastel Dream',
+    id: 'ocean-breeze',
+    name: 'Biru Lautan',
     colors: [
-      '#F49D37',
-      '#F08080',
-      '#90DBF4',
-      '#98F5E1',
-      '#B9FBC0',
-      '#FBF8CC',
-      '#FDE4CF',
-      '#FFCFD2',
-      '#F1C0E8',
-      '#CFBAF0',
+      '#03045E',
+      '#0077B6',
+      '#0096C7',
+      '#00B4D8',
+      '#48CAE4',
+      '#90E0EF',
     ],
   },
   {
-    id: 'ocean-sunset',
-    name: 'Sunset & Ocean',
+    id: 'sunset-glow',
+    name: 'Sunset Orange & Merah',
     colors: [
-      '#264653',
-      '#2A9D8F',
-      '#E9C46A',
+      '#780000',
+      '#C1121F',
+      '#FDF0D5',
+      '#669BBC',
+      '#C75146',
+      '#E8985E',
       '#F4A261',
       '#E76F51',
-      '#1D3557',
-      '#457B9D',
-      '#A8DADC',
-    ],
-  },
-  {
-    id: 'luxury-emerald-gold',
-    name: 'Emerald & Gold Royale',
-    colors: [
-      '#0A5C36',
-      '#148F54',
-      '#D4AF37',
-      '#C5A059',
-      '#1B4332',
-      '#2D6A4F',
-      '#E9C46A',
-      '#52B788',
-    ],
-  },
-  {
-    id: 'monochrome-bold',
-    name: 'Dark Slate & Mono',
-    colors: [
-      '#1E293B',
-      '#334155',
-      '#475569',
-      '#64748B',
-      '#0F172A',
-      '#3B82F6',
-      '#6366F1',
-      '#8B5CF6',
     ],
   },
 ]

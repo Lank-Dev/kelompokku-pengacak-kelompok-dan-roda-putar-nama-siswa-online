@@ -1,27 +1,27 @@
 import React, { useState, useEffect } from 'react'
 import {
-  Sparkles,
   Volume2,
   VolumeX,
-  History,
   Sliders,
   Maximize2,
   Minimize2,
+  Sun,
+  Moon,
 } from 'lucide-react'
 
 interface HeaderProps {
   soundEnabled: boolean
-  historyCount: number
+  darkMode: boolean
   onToggleSound: () => void
-  onOpenHistory: () => void
+  onToggleDarkMode: () => void
   onOpenSettings: () => void
 }
 
 export const Header: React.FC<HeaderProps> = ({
   soundEnabled,
-  historyCount,
+  darkMode,
   onToggleSound,
-  onOpenHistory,
+  onToggleDarkMode,
   onOpenSettings,
 }) => {
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -43,72 +43,91 @@ export const Header: React.FC<HeaderProps> = ({
   }
 
   return (
-    <header className="w-full border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0 z-30 px-4 py-3 sm:px-6">
+    <header
+      className={`w-full border-b sticky top-0 z-30 px-4 py-2.5 sm:px-6 transition-colors ${
+        darkMode
+          ? 'bg-slate-900 border-slate-800 text-slate-100'
+          : 'bg-white border-slate-200 text-slate-800 shadow-xs'
+      }`}
+    >
       <div className="max-w-7xl mx-auto flex items-center justify-between">
-        {/* Brand / Logo */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 text-white shadow-md shadow-blue-500/20">
-            <Sparkles className="w-5 h-5 animate-pulse" />
+        {/* Brand / Logo (Wheel of Names Style) */}
+        <div className="flex items-center gap-2.5">
+          {/* Multi-color circular wheel logo */}
+          <div className="relative w-8 h-8 rounded-full overflow-hidden shadow-sm border border-slate-300 dark:border-slate-600 flex items-center justify-center">
+            <div className="absolute inset-0 bg-conic from-blue-500 via-red-500 via-yellow-400 via-green-500 to-blue-500" />
+            <div className="relative w-2.5 h-2.5 bg-white dark:bg-slate-900 rounded-full shadow-inner" />
           </div>
+
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-lg font-black tracking-tight text-white">
-                KocokNama
+            <div className="flex items-center gap-1.5">
+              <h1 className="text-base sm:text-lg font-black tracking-tight">
+                Wheel of Names
               </h1>
-              <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                PRO
+              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                ID
               </span>
             </div>
-            <p className="hidden sm:block text-[11px] text-slate-400">
-              Roda Pengacak Nama & Undian Doorprize Online
+            <p className="hidden md:block text-[11px] text-slate-500 dark:text-slate-400 -mt-0.5">
+              Roda Pengacak Nama & Undian Pemenang Online
             </p>
           </div>
         </div>
 
         {/* Toolbar Buttons */}
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Customize / Settings Button */}
+          <button
+            onClick={onOpenSettings}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+              darkMode
+                ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
+                : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+            }`}
+            title="Kustomisasi Roda (Customize)"
+          >
+            <Sliders className="w-4 h-4 text-blue-500" />
+            <span>Kustomisasi</span>
+          </button>
+
           {/* Sound Toggle */}
           <button
             onClick={onToggleSound}
-            className={`p-2 rounded-xl border transition-colors ${
+            className={`p-2 rounded-lg border transition-colors ${
               soundEnabled
-                ? 'bg-slate-800/80 text-blue-400 border-slate-700 hover:bg-slate-700'
-                : 'bg-slate-900/60 text-slate-500 border-slate-800 hover:bg-slate-800'
+                ? darkMode
+                  ? 'bg-slate-800 text-blue-400 border-slate-700 hover:bg-slate-700'
+                  : 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
+                : darkMode
+                ? 'bg-slate-800/60 text-slate-500 border-slate-800 hover:bg-slate-800'
+                : 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200'
             }`}
             title={soundEnabled ? 'Matikan Suara (Mute)' : 'Nyalakan Suara'}
           >
             {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
           </button>
 
-          {/* History Button */}
+          {/* Dark / Light Mode Toggle */}
           <button
-            onClick={onOpenHistory}
-            className="relative flex items-center gap-1.5 px-3 py-2 bg-slate-800/80 hover:bg-slate-700 active:bg-slate-600 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 transition-colors"
-            title="Lihat Riwayat Pemenang"
+            onClick={onToggleDarkMode}
+            className={`p-2 rounded-lg border transition-colors ${
+              darkMode
+                ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-400'
+                : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-600'
+            }`}
+            title={darkMode ? 'Beralih ke Mode Terang' : 'Beralih ke Mode Gelap'}
           >
-            <History className="w-4 h-4 text-amber-400" />
-            <span className="hidden sm:inline">Pemenang</span>
-            {historyCount > 0 && (
-              <span className="flex items-center justify-center min-w-4 h-4 px-1 text-[10px] font-bold bg-amber-500 text-slate-950 rounded-full">
-                {historyCount}
-              </span>
-            )}
-          </button>
-
-          {/* Settings Button */}
-          <button
-            onClick={onOpenSettings}
-            className="flex items-center gap-1.5 px-3 py-2 bg-slate-800/80 hover:bg-slate-700 active:bg-slate-600 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 transition-colors"
-            title="Pengaturan Roda"
-          >
-            <Sliders className="w-4 h-4 text-purple-400" />
-            <span className="hidden sm:inline">Pengaturan</span>
+            {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
 
           {/* Fullscreen Button */}
           <button
             onClick={toggleFullscreen}
-            className="p-2 bg-slate-800/80 hover:bg-slate-700 active:bg-slate-600 text-slate-300 hover:text-white rounded-xl border border-slate-700 transition-colors"
+            className={`p-2 rounded-lg border transition-colors ${
+              darkMode
+                ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
+                : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+            }`}
             title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh (F11)'}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}

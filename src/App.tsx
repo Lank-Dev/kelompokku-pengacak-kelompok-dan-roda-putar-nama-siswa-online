@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Header } from './components/Header'
 import { Wheel } from './components/Wheel'
-import { EntriesPanel } from './components/EntriesPanel'
+import { SidebarTabs } from './components/SidebarTabs'
 import { WinnerModal } from './components/WinnerModal'
-import { HistoryModal } from './components/HistoryModal'
 import { SettingsModal } from './components/SettingsModal'
 import type { WheelSettings, WinnerRecord } from './types'
 import { WHEEL_THEMES } from './utils/themes'
@@ -15,13 +14,15 @@ const DEFAULT_SETTINGS: WheelSettings = {
   spinDuration: 6,
   soundEnabled: true,
   confettiEnabled: true,
-  winningMessage: 'Selamat kepada {name}! 🎉',
-  themeId: 'rainbow-classic',
+  winningMessage: 'Kami punya pemenang!',
+  themeId: 'classic-wheelofnames',
   allowDuplicates: true,
+  showRemoveButton: true,
+  darkMode: false, // Default Wheel of Names light theme
 }
 
 export function App() {
-  // Load initial states from localStorage if available
+  // Load initial states from localStorage
   const [items, setItems] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('kocoknama_items')
@@ -57,8 +58,16 @@ export function App() {
 
   const [isSpinning, setIsSpinning] = useState<boolean>(false)
   const [currentWinner, setCurrentWinner] = useState<string | null>(null)
-  const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false)
+
+  // Toggle dark class on root document for Tailwind
+  useEffect(() => {
+    if (settings.darkMode) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+  }, [settings.darkMode])
 
   // Save changes to localStorage
   useEffect(() => {
@@ -116,10 +125,9 @@ export function App() {
     setHistory((prev) => [record, ...prev])
   }, [history.length])
 
-  // Remove winner from list action
+  // Remove winner from list action (Wheel of Names signature feature)
   const handleRemoveWinner = useCallback((winnerToRemove: string) => {
     setItems((prev) => {
-      // Remove first occurrence of this name
       const index = prev.indexOf(winnerToRemove)
       if (index !== -1) {
         const next = [...prev]
@@ -134,9 +142,7 @@ export function App() {
   // Spin again directly from modal
   const handleSpinAgain = useCallback(() => {
     setCurrentWinner(null)
-    // Small timeout to allow modal animation to exit cleanly
     setTimeout(() => {
-      // Trigger canvas click programmatically or wait for user
       const canvas = document.querySelector('canvas')
       if (canvas) {
         canvas.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -162,7 +168,7 @@ export function App() {
     setItems((prev) => [...prev].sort((a, b) => a.localeCompare(b)))
   }, [isSpinning])
 
-  const handleClear = useCallback(() => {
+  const handleClearItems = useCallback(() => {
     if (isSpinning) return
     if (confirm('Yakin ingin mengosongkan semua daftar nama?')) {
       setItems([])
@@ -170,21 +176,24 @@ export function App() {
   }, [isSpinning])
 
   const handleClearHistory = useCallback(() => {
-    if (confirm('Bersihkan semua riwayat pemenang?')) {
+    if (confirm('Hapus semua riwayat pemenang?')) {
       setHistory([])
     }
   }, [])
 
-  // Keyboard shortcut: Spacebar or Enter to spin
+  const handleRemoveHistoryItem = useCallback((id: string) => {
+    setHistory((prev) => prev.filter((item) => item.id !== id))
+  }, [])
+
+  // Global Keyboard shortcuts: Spacebar / Enter to spin, Esc to close
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if user is typing in textarea or input
       const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase()
       if (targetTag === 'textarea' || targetTag === 'input') return
 
       if (e.code === 'Space' || e.key === ' ') {
         e.preventDefault()
-        if (!isSpinning && items.length > 0 && !currentWinner && !isSettingsOpen && !isHistoryOpen) {
+        if (!isSpinning && items.length > 0 && !currentWinner && !isSettingsOpen) {
           const canvas = document.querySelector('canvas')
           if (canvas) {
             canvas.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -195,34 +204,44 @@ export function App() {
       if (e.key === 'Escape') {
         if (currentWinner) setCurrentWinner(null)
         if (isSettingsOpen) setIsSettingsOpen(false)
-        if (isHistoryOpen) setIsHistoryOpen(false)
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isSpinning, items.length, currentWinner, isSettingsOpen, isHistoryOpen])
+  }, [isSpinning, items.length, currentWinner, isSettingsOpen])
 
   return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100 antialiased selection:bg-blue-600 selection:text-white">
-      {/* Top Header */}
+    <div
+      className={`flex flex-col min-h-screen transition-colors ${
+        settings.darkMode
+          ? 'bg-slate-950 text-slate-100'
+          : 'bg-[#f4f6f8] text-slate-800'
+      }`}
+    >
+      {/* Top Header Navigation (Wheel of Names Style) */}
       <Header
         soundEnabled={settings.soundEnabled}
-        historyCount={history.length}
+        darkMode={settings.darkMode}
         onToggleSound={() =>
           setSettings((prev) => ({ ...prev, soundEnabled: !prev.soundEnabled }))
         }
-        onOpenHistory={() => setIsHistoryOpen(true)}
+        onToggleDarkMode={() =>
+          setSettings((prev) => ({ ...prev, darkMode: !prev.darkMode }))
+        }
         onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
-      {/* Main Workspace */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left / Center: Interactive Wheel Stage (8 cols on desktop) */}
-        <section className="lg:col-span-7 xl:col-span-8 flex flex-col items-center justify-center bg-slate-900/50 border border-slate-800/80 rounded-3xl p-4 sm:p-8 backdrop-blur-sm relative overflow-hidden shadow-2xl min-h-[460px] lg:min-h-[640px]">
-          {/* Subtle background glow */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
-
+      {/* Main Workspace Layout */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+        {/* Left Stage: Wheel Area (7 cols on desktop) */}
+        <section
+          className={`lg:col-span-7 xl:col-span-8 flex flex-col items-center justify-center rounded-2xl p-4 sm:p-6 border shadow-xs relative overflow-hidden transition-colors min-h-[460px] lg:min-h-[600px] ${
+            settings.darkMode
+              ? 'bg-slate-900 border-slate-800'
+              : 'bg-white border-slate-200'
+          }`}
+        >
           {/* Canvas Wheel Component */}
           <Wheel
             items={items}
@@ -230,29 +249,34 @@ export function App() {
             spinDuration={settings.spinDuration}
             soundEnabled={settings.soundEnabled}
             isSpinning={isSpinning}
+            darkMode={settings.darkMode}
             onSpinStart={handleSpinStart}
             onSpinEnd={handleSpinEnd}
           />
 
           {/* Quick Instruction / Hotkey Tip */}
-          <div className="mt-4 flex items-center gap-2 text-xs text-slate-400">
-            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 bg-slate-800 rounded border border-slate-700 font-mono text-[11px] text-slate-300">
-              SPACE
+          <div className="mt-3 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded border border-slate-300 dark:border-slate-700 font-mono text-[11px] font-bold">
+              SPASI
             </span>
-            <span className="hidden sm:inline">atau klik tengah roda untuk memutar</span>
-            <span className="sm:hidden">Ketuk roda untuk memutar</span>
+            <span className="hidden sm:inline">atau klik roda untuk memutar</span>
+            <span className="sm:hidden font-medium">Ketuk roda untuk memutar</span>
           </div>
         </section>
 
-        {/* Right: Entries Panel (5 cols on desktop) */}
-        <section className="lg:col-span-5 xl:col-span-4 h-full min-h-[460px] lg:min-h-[640px] flex flex-col">
-          <EntriesPanel
+        {/* Right Stage: Sidebar Tabs (Entri & Hasil) (5 cols on desktop) */}
+        <section className="lg:col-span-5 xl:col-span-4 h-full min-h-[460px] lg:min-h-[600px] flex flex-col">
+          <SidebarTabs
             items={items}
+            history={history}
+            disabled={isSpinning}
+            darkMode={settings.darkMode}
             onChangeItems={setItems}
             onShuffle={handleShuffle}
             onSort={handleSort}
-            onClear={handleClear}
-            disabled={isSpinning}
+            onClearItems={handleClearItems}
+            onClearHistory={handleClearHistory}
+            onRemoveHistoryItem={handleRemoveHistoryItem}
           />
         </section>
       </main>
@@ -264,21 +288,17 @@ export function App() {
         remainingCount={items.length}
         winningMessage={settings.winningMessage}
         confettiEnabled={settings.confettiEnabled}
+        showRemoveButton={settings.showRemoveButton}
+        darkMode={settings.darkMode}
         onClose={() => setCurrentWinner(null)}
         onRemoveWinner={handleRemoveWinner}
         onSpinAgain={handleSpinAgain}
       />
 
-      <HistoryModal
-        isOpen={isHistoryOpen}
-        history={history}
-        onClose={() => setIsHistoryOpen(false)}
-        onClearHistory={handleClearHistory}
-      />
-
       <SettingsModal
         isOpen={isSettingsOpen}
         settings={settings}
+        darkMode={settings.darkMode}
         onUpdateSettings={(updated) => setSettings((prev) => ({ ...prev, ...updated }))}
         onClose={() => setIsSettingsOpen(false)}
       />
