@@ -1,12 +1,10 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { soundManager } from '../utils/audio'
 import { getContrastTextColor, truncateText } from '../utils/color'
 
 interface WheelProps {
   items: string[]
   colors: string[]
   spinDuration: number // seconds
-  soundEnabled: boolean
   isSpinning: boolean
   darkMode: boolean
   onSpinStart: () => void
@@ -17,7 +15,6 @@ export const Wheel: React.FC<WheelProps> = ({
   items,
   colors,
   spinDuration,
-  soundEnabled,
   isSpinning,
   darkMode,
   onSpinStart,
@@ -35,11 +32,7 @@ export const Wheel: React.FC<WheelProps> = ({
   const flapperDeflectionRef = useRef<number>(0)
 
   const [hoverCenter, setHoverCenter] = useState(false)
-
-  // Update sound manager mute status
-  useEffect(() => {
-    soundManager.setMuted(!soundEnabled)
-  }, [soundEnabled])
+  const [highlightedName, setHighlightedName] = useState<string>('')
 
   // Calculate current slice under pointer
   const getSliceUnderPointer = useCallback(
@@ -52,7 +45,17 @@ export const Wheel: React.FC<WheelProps> = ({
     []
   )
 
-  // Draw wheel function
+  // Update highlighted name initially or when items change
+  useEffect(() => {
+    if (items.length > 0) {
+      const idx = getSliceUnderPointer(rotationRef.current, items.length)
+      setHighlightedName(items[idx] || '')
+    } else {
+      setHighlightedName('')
+    }
+  }, [items, getSliceUnderPointer])
+
+  // Draw wheel function (Optimized for 2 to 500+ names)
   const drawWheel = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -89,28 +92,40 @@ export const Wheel: React.FC<WheelProps> = ({
     const total = items.length
     const sliceAngle = (2 * Math.PI) / total
     const rot = rotationRef.current
+    const arcLengthAtRim = radius * sliceAngle
 
-    // 1. Draw outer shadow / decorative rim (Wheel of Names style)
+    // 1. Draw outer shadow & clean circular rim
     ctx.save()
     ctx.beginPath()
     ctx.arc(cx, cy, radius + 8, 0, 2 * Math.PI)
     ctx.fillStyle = darkMode ? '#0f172a' : '#ffffff'
-    ctx.shadowColor = darkMode ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.15)'
-    ctx.shadowBlur = 20
-    ctx.shadowOffsetY = 6
+    ctx.shadowColor = darkMode ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.12)'
+    ctx.shadowBlur = 18
+    ctx.shadowOffsetY = 5
     ctx.fill()
     ctx.restore()
 
-    // Outer rim border
+    // Outer border ring
     ctx.save()
     ctx.beginPath()
     ctx.arc(cx, cy, radius + 6, 0, 2 * Math.PI)
-    ctx.lineWidth = 8
+    ctx.lineWidth = 6
     ctx.strokeStyle = darkMode ? '#334155' : '#e2e8f0'
     ctx.stroke()
     ctx.restore()
 
-    // 2. Draw Wedges
+    // 2. Divider stroke width configuration (Adapts safely for hundreds of names)
+    let dividerWidth = 2
+    let showDivider = true
+    if (total > 200) {
+      showDivider = false // No white lines when slices are razor thin
+    } else if (total > 80) {
+      dividerWidth = 0.5
+    } else if (total > 40) {
+      dividerWidth = 1
+    }
+
+    // 3. Draw Slices
     for (let i = 0; i < total; i++) {
       const startAngle = rot + i * sliceAngle
       const endAngle = startAngle + sliceAngle
@@ -124,49 +139,60 @@ export const Wheel: React.FC<WheelProps> = ({
       ctx.fillStyle = color
       ctx.fill()
 
-      // Clean white slice dividers
-      ctx.lineWidth = total > 60 ? 1 : 2
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)'
-      ctx.stroke()
-      ctx.restore()
-
-      // 3. Draw text in slice (Radial, aligned from rim inward)
-      const text = items[i]
-      const midAngle = startAngle + sliceAngle / 2
-
-      ctx.save()
-      ctx.translate(cx, cy)
-      ctx.rotate(midAngle)
-
-      const contrastColor = getContrastTextColor(color)
-      ctx.fillStyle = contrastColor
-      ctx.textBaseline = 'middle'
-      ctx.textAlign = 'right'
-
-      // Dynamic font size based on slice count and wheel size
-      const maxTextWidth = radius - 75
-      let fontSize = Math.min(
-        22,
-        Math.max(9, Math.floor(radius * 0.85 * Math.sin(sliceAngle / 2) * 1.35))
-      )
-      if (total <= 6) fontSize = 24
-      if (total > 50) fontSize = 11
-      if (total > 90) fontSize = 9
-
-      ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`
-      const fittedText = truncateText(ctx, text, maxTextWidth)
-
-      // Radial text position with text shadow for crisp legibility
-      if (contrastColor === '#ffffff') {
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.4)'
-        ctx.shadowBlur = 3
+      if (showDivider) {
+        ctx.lineWidth = dividerWidth
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)'
+        ctx.stroke()
       }
-      ctx.fillText(fittedText, radius - 18, 0)
       ctx.restore()
+
+      // 4. Draw Radial Text (Scale-Safe for Hundreds of Names)
+      const shouldDrawText =
+        total <= 120 ||
+        (total <= 200 && arcLengthAtRim >= 7) ||
+        (total > 200 && i % Math.ceil(total / 100) === 0)
+
+      if (shouldDrawText && arcLengthAtRim >= 6) {
+        const text = items[i]
+        const midAngle = startAngle + sliceAngle / 2
+
+        ctx.save()
+        ctx.translate(cx, cy)
+        ctx.rotate(midAngle)
+
+        const contrastColor = getContrastTextColor(color)
+        ctx.fillStyle = contrastColor
+        ctx.textBaseline = 'middle'
+        ctx.textAlign = 'right'
+
+        // Dynamic font size computation
+        let fontSize = Math.min(
+          22,
+          Math.max(8, Math.floor(arcLengthAtRim * 0.7))
+        )
+        if (total <= 6) fontSize = 24
+        else if (total <= 12) fontSize = 18
+        else if (total <= 30) fontSize = 14
+        else if (total <= 60) fontSize = 11
+        else if (total <= 100) fontSize = 9
+        else fontSize = 8
+
+        ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`
+        const maxTextWidth = radius - (radius * 0.22 + 20)
+        const fittedText = truncateText(ctx, text, maxTextWidth)
+
+        if (contrastColor === '#ffffff' && fontSize >= 11) {
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.4)'
+          ctx.shadowBlur = 2
+        }
+
+        ctx.fillText(fittedText, radius - 16, 0)
+        ctx.restore()
+      }
     }
 
-    // 4. Perimeter Pegs / Rivets
-    const pegCount = Math.min(Math.max(total, 12), 48)
+    // 5. Perimeter Pegs (Capped so it never becomes a black blob)
+    const pegCount = Math.min(Math.max(total, 12), 36)
     const pegAngleStep = (2 * Math.PI) / pegCount
     for (let p = 0; p < pegCount; p++) {
       const pAngle = rot + p * pegAngleStep
@@ -175,42 +201,47 @@ export const Wheel: React.FC<WheelProps> = ({
 
       ctx.save()
       ctx.beginPath()
-      ctx.arc(px, py, 3, 0, 2 * Math.PI)
+      ctx.arc(px, py, 2.5, 0, 2 * Math.PI)
       ctx.fillStyle = darkMode ? '#e2e8f0' : '#475569'
       ctx.fill()
       ctx.restore()
     }
 
-    // 5. Center Hub (Wheel of Names Crisp White Center with click indicator)
+    // 6. Center Hub (Crisp White Hub with Click Indicator)
     ctx.save()
-    const hubRadius = Math.max(46, radius * 0.22)
+    const hubRadius = Math.max(44, Math.min(62, radius * 0.22))
 
     // Hub drop shadow
     ctx.beginPath()
     ctx.arc(cx, cy, hubRadius, 0, 2 * Math.PI)
     ctx.fillStyle = darkMode ? '#1e293b' : '#ffffff'
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.25)'
-    ctx.shadowBlur = 12
-    ctx.shadowOffsetY = 3
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.22)'
+    ctx.shadowBlur = 10
+    ctx.shadowOffsetY = 2
     ctx.fill()
 
-    // Hub border ring
+    // Hub rim border
     ctx.beginPath()
     ctx.arc(cx, cy, hubRadius, 0, 2 * Math.PI)
-    ctx.strokeStyle = hoverCenter && !isSpinning ? '#3b82f6' : (darkMode ? '#334155' : '#cbd5e1')
-    ctx.lineWidth = 4
+    ctx.strokeStyle =
+      hoverCenter && !isSpinning ? '#3b82f6' : darkMode ? '#334155' : '#cbd5e1'
+    ctx.lineWidth = 3.5
     ctx.stroke()
 
     // Hub inner circle face
     ctx.beginPath()
-    ctx.arc(cx, cy, hubRadius - 4, 0, 2 * Math.PI)
+    ctx.arc(cx, cy, hubRadius - 3.5, 0, 2 * Math.PI)
     ctx.fillStyle = darkMode
-      ? (hoverCenter && !isSpinning ? '#1e3a8a' : '#0f172a')
-      : (hoverCenter && !isSpinning ? '#eff6ff' : '#ffffff')
+      ? hoverCenter && !isSpinning
+        ? '#1e3a8a'
+        : '#0f172a'
+      : hoverCenter && !isSpinning
+      ? '#eff6ff'
+      : '#ffffff'
     ctx.fill()
 
-    // Center button text or spinner icon
-    ctx.fillStyle = hoverCenter && !isSpinning ? '#2563eb' : (darkMode ? '#f8fafc' : '#1e293b')
+    // Center button text
+    ctx.fillStyle = hoverCenter && !isSpinning ? '#2563eb' : darkMode ? '#f8fafc' : '#1e293b'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
@@ -221,14 +252,14 @@ export const Wheel: React.FC<WheelProps> = ({
       ctx.font = `900 ${Math.max(13, Math.floor(hubRadius * 0.32))}px system-ui, sans-serif`
       ctx.fillText('PUTAR', cx, cy - (hubRadius > 50 ? 6 : 0))
       if (hubRadius > 50) {
-        ctx.font = `600 10px system-ui, sans-serif`
+        ctx.font = '600 10px system-ui, sans-serif'
         ctx.fillStyle = darkMode ? '#94a3b8' : '#64748b'
         ctx.fillText('KLIK SAYA', cx, cy + 12)
       }
     }
     ctx.restore()
 
-    // 6. Right-side Pointer / Ticker Flapper (at 3 o'clock: cx + radius, cy)
+    // 7. Right-side Pointer / Ticker Flapper (3 o'clock position)
     const pointerX = cx + radius + 10
     const pointerY = cy
     const flapperDeflection = flapperDeflectionRef.current
@@ -237,21 +268,19 @@ export const Wheel: React.FC<WheelProps> = ({
     ctx.translate(pointerX, pointerY)
     ctx.rotate(flapperDeflection)
 
-    // Pointer shadow
-    ctx.shadowColor = 'rgba(0,0,0,0.35)'
+    ctx.shadowColor = 'rgba(0,0,0,0.3)'
     ctx.shadowBlur = 6
     ctx.shadowOffsetX = -2
     ctx.shadowOffsetY = 2
 
-    // Pointer triangular shape pointing left into wheel
+    // Triangular flapper pointing left
     ctx.beginPath()
-    ctx.moveTo(-30, 0) // Tip inside the wheel
-    ctx.lineTo(8, -13)
+    ctx.moveTo(-28, 0)
+    ctx.lineTo(8, -12)
     ctx.lineTo(14, 0)
-    ctx.lineTo(8, 13)
+    ctx.lineTo(8, 12)
     ctx.closePath()
 
-    // Wheel of Names uses a sleek dark flapper with a pin
     ctx.fillStyle = '#1e293b'
     ctx.fill()
     ctx.lineWidth = 2
@@ -305,12 +334,10 @@ export const Wheel: React.FC<WheelProps> = ({
       const currentSlice = getSliceUnderPointer(currentRot, items.length)
 
       if (lastSliceIndexRef.current !== -1 && currentSlice !== lastSliceIndexRef.current) {
-        // A peg passed!
+        // Visual flapper bounce (silent, ultra-fast)
         const velocityMultiplier = Math.min(angularVelocity / 0.05, 3.0)
-        soundManager.playTick(velocityMultiplier)
-
-        // Deflect ticker flapper angle (in radians)
         flapperDeflectionRef.current = -0.32 * Math.min(velocityMultiplier, 1.2)
+        setHighlightedName(items[currentSlice] || '')
       }
       lastSliceIndexRef.current = currentSlice
 
@@ -320,32 +347,30 @@ export const Wheel: React.FC<WheelProps> = ({
         flapperDeflectionRef.current = 0
       }
     },
-    [items.length, getSliceUnderPointer]
+    [items, getSliceUnderPointer]
   )
 
-  // Spin trigger
+  // Spin trigger (Ultra-snappy)
   const spin = useCallback(() => {
     if (isSpinning || items.length === 0) return
 
     onSpinStart()
-    soundManager.playSpinStart()
 
     // Decide winning index uniformly at random
     const total = items.length
     const winningIndex = Math.floor(Math.random() * total)
     const sliceAngle = (2 * Math.PI) / total
 
-    // In our coordinate system, pointer is at 0 rad.
-    // Winning slice index k covers normalized angle: [k * sliceAngle, (k + 1) * sliceAngle).
-    // Target normalized angle lands safely inside the slice (with safe 15% margins from borders).
+    // Safe random margin within winning slice
     const randomOffsetInSlice = (0.15 + Math.random() * 0.7) * sliceAngle
     const targetNormalizedAngle = winningIndex * sliceAngle + randomOffsetInSlice
 
-    // Target rotation R satisfies: ((-R % 2PI) + 2PI) % 2PI = targetNormalizedAngle
     const fullSpins = 6 + Math.floor(Math.random() * 4)
     const currentRot = rotationRef.current
     const targetRot =
-      currentRot + fullSpins * (2 * Math.PI) + ((2 * Math.PI - (targetNormalizedAngle % (2 * Math.PI))) % (2 * Math.PI))
+      currentRot +
+      fullSpins * (2 * Math.PI) +
+      ((2 * Math.PI - (targetNormalizedAngle % (2 * Math.PI))) % (2 * Math.PI))
 
     const startRot = currentRot
     const totalDelta = targetRot - startRot
@@ -358,7 +383,7 @@ export const Wheel: React.FC<WheelProps> = ({
       const elapsed = now - startTime
       const progress = Math.min(elapsed / durationMs, 1)
 
-      // Quintic ease out for a dramatic, suspenseful crawl at the end
+      // Quintic ease out
       const eased = 1 - Math.pow(1 - progress, 5)
       const currentAngle = startRot + totalDelta * eased
       rotationRef.current = currentAngle
@@ -378,7 +403,7 @@ export const Wheel: React.FC<WheelProps> = ({
 
         const finalSliceIndex = getSliceUnderPointer(targetRot, items.length)
         const winner = items[finalSliceIndex]
-        soundManager.playWinnerFanfare()
+        setHighlightedName(winner)
         onSpinEnd(winner)
       }
     }
@@ -395,13 +420,11 @@ export const Wheel: React.FC<WheelProps> = ({
     getSliceUnderPointer,
   ])
 
-  // Handle click on canvas: if clicked on wheel or center, spin!
   const handleCanvasClick = () => {
     if (isSpinning || items.length === 0) return
     spin()
   }
 
-  // Handle mouse move to toggle cursor pointer on center button
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -411,12 +434,11 @@ export const Wheel: React.FC<WheelProps> = ({
     const cx = rect.width / 2
     const cy = rect.height / 2
     const dist = Math.hypot(x - cx, y - cy)
-    const hubRadius = Math.max(46, (rect.width / 2 - 24) * 0.22)
+    const hubRadius = Math.max(44, Math.min(62, (rect.width / 2 - 24) * 0.22))
 
     setHoverCenter(dist <= hubRadius)
   }
 
-  // Cleanup anim frame on unmount
   useEffect(() => {
     return () => {
       if (animFrameRef.current) {
@@ -428,7 +450,7 @@ export const Wheel: React.FC<WheelProps> = ({
   return (
     <div
       ref={containerRef}
-      className="relative flex items-center justify-center w-full h-full min-h-[360px] p-2"
+      className="relative flex flex-col items-center justify-center w-full h-full min-h-[360px] p-2"
     >
       <canvas
         ref={canvasRef}
@@ -438,6 +460,23 @@ export const Wheel: React.FC<WheelProps> = ({
         className="cursor-pointer transition-transform duration-200 active:scale-[0.99] touch-manipulation select-none"
         title="Klik untuk memutar roda! (Atau tekan Spasi)"
       />
+
+      {/* Live Pointer Indicator HUD (Sangat membantu saat ada puluhan/ratusan nama) */}
+      {items.length > 0 && highlightedName && (
+        <div
+          className={`mt-2 px-3 py-1 rounded-full text-xs font-semibold border shadow-xs transition-all flex items-center gap-2 max-w-[85%] truncate ${
+            darkMode
+              ? 'bg-slate-800/90 border-slate-700 text-slate-200'
+              : 'bg-white/95 border-slate-200 text-slate-700'
+          }`}
+        >
+          <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+          <span className="text-[11px] opacity-70 shrink-0">Menunjuk:</span>
+          <span className="font-bold text-blue-600 dark:text-blue-400 truncate">
+            {highlightedName}
+          </span>
+        </div>
+      )}
     </div>
   )
 }

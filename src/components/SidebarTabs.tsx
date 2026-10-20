@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import {
   Shuffle,
   ArrowDownAZ,
@@ -9,6 +9,8 @@ import {
   Check,
   Trophy,
   Users,
+  Search,
+  FilterX,
 } from 'lucide-react'
 import type { WinnerRecord } from '../types'
 import { PRESET_LISTS } from '../utils/presets'
@@ -42,8 +44,12 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
   const [showPresets, setShowPresets] = useState(false)
   const [copiedEntries, setCopiedEntries] = useState(false)
   const [copiedResults, setCopiedResults] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const textValue = items.join('\n')
+
+  const uniqueCount = useMemo(() => new Set(items).size, [items])
+  const duplicateCount = items.length - uniqueCount
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const lines = e.target.value.split('\n')
@@ -83,6 +89,26 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
     setCopiedResults(true)
     setTimeout(() => setCopiedResults(false), 2000)
   }
+
+  // Remove duplicate entries
+  const handleRemoveDuplicates = () => {
+    const seen = new Set<string>()
+    const deduplicated: string[] = []
+    items.forEach((item) => {
+      if (!seen.has(item)) {
+        seen.add(item)
+        deduplicated.push(item)
+      }
+    })
+    onChangeItems(deduplicated)
+  }
+
+  // Filtered results for search
+  const filteredHistory = useMemo(() => {
+    if (!searchQuery.trim()) return history
+    const q = searchQuery.toLowerCase()
+    return history.filter((rec) => rec.name.toLowerCase().includes(q))
+  }, [history, searchQuery])
 
   return (
     <div
@@ -172,7 +198,7 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
                 onClick={() => setShowPresets(!showPresets)}
                 disabled={disabled}
                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
-                title="Pilih contoh preset"
+                title="Pilih contoh preset (15, 50, 100, 250 orang)"
               >
                 <Sparkles className="w-3.5 h-3.5 text-purple-500" />
                 <span>Preset</span>
@@ -180,14 +206,14 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
 
               {showPresets && (
                 <div
-                  className={`absolute left-0 mt-2 w-64 p-2 rounded-xl shadow-2xl z-40 border animate-in fade-in zoom-in-95 ${
+                  className={`absolute left-0 mt-2 w-72 max-h-80 overflow-y-auto p-2 rounded-xl shadow-2xl z-40 border animate-in fade-in zoom-in-95 ${
                     darkMode
                       ? 'bg-slate-900 border-slate-700 text-slate-200'
                       : 'bg-white border-slate-200 text-slate-800'
                   }`}
                 >
                   <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-2 py-1 mb-1">
-                    Pilih Contoh Daftar:
+                    Pilihan Preset Skala Besar:
                   </div>
                   <div className="space-y-1">
                     {PRESET_LISTS.map((preset) => (
@@ -198,8 +224,11 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
                           darkMode ? 'hover:bg-slate-800' : 'hover:bg-slate-100'
                         }`}
                       >
-                        <div className="font-medium text-xs group-hover:text-blue-600">
-                          {preset.title}
+                        <div className="font-semibold text-xs group-hover:text-blue-600 flex items-center justify-between">
+                          <span>{preset.title}</span>
+                          <span className="text-[10px] opacity-70 font-mono">
+                            {preset.items.length} nama
+                          </span>
                         </div>
                         <div className="text-[10px] text-slate-400 truncate">
                           {preset.description}
@@ -210,6 +239,18 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Deduplicate Button (Aman untuk ratusan nama) */}
+            {duplicateCount > 0 && (
+              <button
+                onClick={handleRemoveDuplicates}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border font-semibold transition-colors bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/50 dark:hover:bg-amber-900/50 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300"
+                title={`Hapus ${duplicateCount} nama duplikat`}
+              >
+                <FilterX className="w-3.5 h-3.5 text-amber-600" />
+                <span>Hapus {duplicateCount} Duplikat</span>
+              </button>
+            )}
 
             <button
               onClick={handleCopyEntries}
@@ -266,18 +307,20 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
               spellCheck={false}
             />
             <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
-              <span>1 baris = 1 bagian di roda</span>
-              <span className="font-semibold">{items.length} entri</span>
+              <span>1 baris = 1 irisan di roda</span>
+              <span className="font-semibold">
+                {items.length} entri ({uniqueCount} unik)
+              </span>
             </div>
           </div>
         </div>
       )}
 
-      {/* Content for Results Tab (Wheel of Names Style) */}
+      {/* Content for Results Tab */}
       {activeTab === 'results' && (
         <div className="flex-1 flex flex-col p-3 overflow-hidden">
           {/* Action Toolbar for Results */}
-          <div className="flex items-center justify-between pb-2.5 border-b mb-2.5 border-slate-200 dark:border-slate-800 text-xs">
+          <div className="flex items-center justify-between pb-2.5 border-b mb-2 border-slate-200 dark:border-slate-800 text-xs">
             <div className="font-semibold text-slate-600 dark:text-slate-300">
               Total {history.length} Pemenang
             </div>
@@ -314,18 +357,38 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
             </div>
           </div>
 
+          {/* Search Bar for Results (Aman untuk ratusan riwayat) */}
+          {history.length > 5 && (
+            <div className="relative mb-2">
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari nama pemenang..."
+                className={`w-full pl-8 pr-3 py-1.5 rounded-lg text-xs border focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                  darkMode
+                    ? 'bg-slate-950 border-slate-800 text-slate-200'
+                    : 'bg-slate-50 border-slate-200 text-slate-800'
+                }`}
+              />
+            </div>
+          )}
+
           {/* Results List */}
           <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-            {history.length === 0 ? (
+            {filteredHistory.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center p-6 text-slate-400 dark:text-slate-500">
                 <Trophy className="w-10 h-10 mb-2 opacity-30 text-amber-500" />
-                <p className="text-xs font-medium">Belum ada pemenang yang tercatat.</p>
+                <p className="text-xs font-medium">
+                  {searchQuery ? 'Tidak ada nama yang cocok.' : 'Belum ada pemenang yang tercatat.'}
+                </p>
                 <p className="text-[11px] text-slate-400 dark:text-slate-600 mt-1">
                   Putar roda untuk melihat hasil pemenang di sini!
                 </p>
               </div>
             ) : (
-              history.map((record) => (
+              filteredHistory.map((record) => (
                 <div
                   key={record.id}
                   className={`flex items-center justify-between p-2.5 rounded-xl border text-xs transition-colors group ${
@@ -335,7 +398,7 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
                   }`}
                 >
                   <div className="flex items-center gap-2.5 truncate">
-                    <span className="flex items-center justify-center w-6 h-6 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-400 font-mono text-[11px] font-bold">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-400 font-mono text-[11px] font-bold shrink-0">
                       #{record.round}
                     </span>
                     <div className="truncate">
@@ -348,7 +411,7 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
 
                   <button
                     onClick={() => onRemoveHistoryItem(record.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-rose-500 rounded transition-all"
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-rose-500 rounded transition-all shrink-0"
                     title="Hapus catatan ini"
                   >
                     <Trash2 className="w-3.5 h-3.5" />

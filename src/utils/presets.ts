@@ -5,34 +5,73 @@ export interface PresetList {
   items: string[]
 }
 
+const INDONESIAN_FIRST_NAMES = [
+  'Aditya', 'Agus', 'Ahmad', 'Aisyah', 'Alamsyah', 'Aldi', 'Alif', 'Amalia', 'Ananda', 'Andi',
+  'Angga', 'Annisa', 'Ardi', 'Arief', 'Aris', 'Arya', 'Aulia', 'Bagas', 'Bambang', 'Bayu',
+  'Bella', 'Bima', 'Budi', 'Cahyo', 'Chandra', 'Cici', 'Citra', 'Danang', 'Dedi', 'Denny',
+  'Dewi', 'Dian', 'Dimas', 'Dinda', 'Dini', 'Doni', 'Eka', 'Endah', 'Fadhil', 'Fajar',
+  'Farhan', 'Fathir', 'Febri', 'Fitri', 'Galih', 'Gilang', 'Gita', 'Guntur', 'Hadi', 'Hafiz',
+  'Hana', 'Hari', 'Hasan', 'Hendro', 'Heru', 'Hidayat', 'Ilham', 'Imam', 'Indah', 'Indra',
+  'Intan', 'Irfan', 'Ivan', 'Joko', 'Kartika', 'Kevin', 'Kiki', 'Krisna', 'Kurniawan', 'Laras',
+  'Lia', 'Lukman', 'Maman', 'Maya', 'Mega', 'Melati', 'Mia', 'Miko', 'Mira', 'Muhammad',
+  'Nabil', 'Nadia', 'Nanda', 'Naufal', 'Nia', 'Novita', 'Nur', 'Oki', 'Panji', 'Permana',
+  'Prasetyo', 'Putra', 'Putri', 'Raden', 'Rafi', 'Rahma', 'Rama', 'Rangga', 'Rian', 'Rina'
+]
+
+const INDONESIAN_LAST_NAMES = [
+  'Pratama', 'Safitri', 'Kirana', 'Arya', 'Ramadhan', 'Rahman', 'Permata', 'Kusuma', 'Lestari', 'Susilo',
+  'Sanjaya', 'Amelia', 'Malik', 'Utami', 'Setiawan', 'Hidayat', 'Saputra', 'Wibowo', 'Nugroho', 'Siregar',
+  'Nasution', 'Batubara', 'Lubis', 'Harahap', 'Ginting', 'Sembiring', 'Sitepu', 'Tarigan', 'Sinaga', 'Simanjuntak',
+  'Hutapea', 'Pardede', 'Pasaribu', 'Manurung', 'Panjaitan', 'Simatupang', 'Sihombing', 'Nababan', 'Sitompul', 'Hutabarat',
+  'Tanjung', 'Chaniago', 'Koto', 'Piliang', 'Caniago', 'Sikumbang', 'Jambak', 'Gusti', 'Anwar', 'Santoso'
+]
+
+function generateNames(count: number): string[] {
+  const result: string[] = []
+  for (let i = 0; i < count; i++) {
+    const fn = INDONESIAN_FIRST_NAMES[i % INDONESIAN_FIRST_NAMES.length]
+    const ln = INDONESIAN_LAST_NAMES[(i * 3 + 7) % INDONESIAN_LAST_NAMES.length]
+    result.push(`${fn} ${ln}`)
+  }
+  return result
+}
+
 export const PRESET_LISTS: PresetList[] = [
   {
-    id: 'students',
-    title: 'Daftar Nama Murid',
+    id: 'students-15',
+    title: 'Daftar Kelas (15 Murid)',
     description: '15 Nama siswa untuk giliran presentasi atau piket',
-    items: [
-      'Aditya Pratama',
-      'Bella Safitri',
-      'Citra Kirana',
-      'Dimas Arya',
-      'Eka Ramadhan',
-      'Fadhil Rahman',
-      'Gita Permata',
-      'Hendra Kusuma',
-      'Indah Lestari',
-      'Joko Susilo',
-      'Kevin Sanjaya',
-      'Lia Amelia',
-      'Maulana Malik',
-      'Nadia Utami',
-      'Oki Setiawan',
-    ],
+    items: generateNames(15),
   },
   {
-    id: 'numbers',
-    title: 'Nomor Acak (1 - 20)',
-    description: 'Angka urut 1 sampai 20 untuk undian kupon',
+    id: 'employees-50',
+    title: '50 Karyawan / Peserta',
+    description: '50 Nama untuk undian gathering atau doorprize departemen',
+    items: generateNames(50),
+  },
+  {
+    id: 'employees-100',
+    title: '100 Karyawan / Peserta (Besar)',
+    description: '100 Nama lengkap untuk undian acara besar / perusahaan',
+    items: generateNames(100),
+  },
+  {
+    id: 'numbers-20',
+    title: 'Nomor Kupon (1 - 20)',
+    description: 'Angka urut 1 sampai 20',
     items: Array.from({ length: 20 }, (_, i) => `Nomor ${i + 1}`),
+  },
+  {
+    id: 'numbers-100',
+    title: 'Kupon Undian (1 - 100)',
+    description: '100 Kupon untuk undian massal',
+    items: Array.from({ length: 100 }, (_, i) => `Kupon #${String(i + 1).padStart(3, '0')}`),
+  },
+  {
+    id: 'numbers-250',
+    title: 'Kupon Undian (1 - 250)',
+    description: '250 Kupon undian doorprize besar',
+    items: Array.from({ length: 250 }, (_, i) => `Kupon #${String(i + 1).padStart(3, '0')}`),
   },
   {
     id: 'lunch',

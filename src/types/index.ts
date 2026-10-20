@@ -18,8 +18,7 @@ export interface WinnerRecord {
 }
 
 export interface WheelSettings {
-  spinDuration: number // seconds (default 6)
-  soundEnabled: boolean
+  spinDuration: number // seconds (default 4)
   confettiEnabled: boolean
   winningMessage: string
   themeId: string

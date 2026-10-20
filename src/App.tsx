@@ -11,18 +11,16 @@ import { PRESET_LISTS } from './utils/presets'
 const DEFAULT_ITEMS = PRESET_LISTS[0].items
 
 const DEFAULT_SETTINGS: WheelSettings = {
-  spinDuration: 6,
-  soundEnabled: true,
+  spinDuration: 3, // Fast & snappy 3-second spin
   confettiEnabled: true,
   winningMessage: 'Kami punya pemenang!',
   themeId: 'classic-wheelofnames',
   allowDuplicates: true,
   showRemoveButton: true,
-  darkMode: false, // Default Wheel of Names light theme
+  darkMode: false, // Default Wheel of Names clean light theme
 }
 
 export function App() {
-  // Load initial states from localStorage
   const [items, setItems] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('kocoknama_items')
@@ -60,7 +58,7 @@ export function App() {
   const [currentWinner, setCurrentWinner] = useState<string | null>(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false)
 
-  // Toggle dark class on root document for Tailwind
+  // Toggle dark class on root document
   useEffect(() => {
     if (settings.darkMode) {
       document.documentElement.classList.add('dark')
@@ -125,7 +123,7 @@ export function App() {
     setHistory((prev) => [record, ...prev])
   }, [history.length])
 
-  // Remove winner from list action (Wheel of Names signature feature)
+  // Remove winner from list action
   const handleRemoveWinner = useCallback((winnerToRemove: string) => {
     setItems((prev) => {
       const index = prev.indexOf(winnerToRemove)
@@ -147,7 +145,7 @@ export function App() {
       if (canvas) {
         canvas.dispatchEvent(new MouseEvent('click', { bubbles: true }))
       }
-    }, 200)
+    }, 150)
   }, [])
 
   // Entries toolbar handlers
@@ -219,13 +217,9 @@ export function App() {
           : 'bg-[#f4f6f8] text-slate-800'
       }`}
     >
-      {/* Top Header Navigation (Wheel of Names Style) */}
+      {/* Top Header Navigation */}
       <Header
-        soundEnabled={settings.soundEnabled}
         darkMode={settings.darkMode}
-        onToggleSound={() =>
-          setSettings((prev) => ({ ...prev, soundEnabled: !prev.soundEnabled }))
-        }
         onToggleDarkMode={() =>
           setSettings((prev) => ({ ...prev, darkMode: !prev.darkMode }))
         }
@@ -234,7 +228,7 @@ export function App() {
 
       {/* Main Workspace Layout */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-        {/* Left Stage: Wheel Area (7 cols on desktop) */}
+        {/* Left Stage: Wheel Area */}
         <section
           className={`lg:col-span-7 xl:col-span-8 flex flex-col items-center justify-center rounded-2xl p-4 sm:p-6 border shadow-xs relative overflow-hidden transition-colors min-h-[460px] lg:min-h-[600px] ${
             settings.darkMode
@@ -247,14 +241,13 @@ export function App() {
             items={items}
             colors={currentTheme.colors}
             spinDuration={settings.spinDuration}
-            soundEnabled={settings.soundEnabled}
             isSpinning={isSpinning}
             darkMode={settings.darkMode}
             onSpinStart={handleSpinStart}
             onSpinEnd={handleSpinEnd}
           />
 
-          {/* Quick Instruction / Hotkey Tip */}
+          {/* Quick Instruction */}
           <div className="mt-3 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
             <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded border border-slate-300 dark:border-slate-700 font-mono text-[11px] font-bold">
               SPASI
@@ -264,7 +257,7 @@ export function App() {
           </div>
         </section>
 
-        {/* Right Stage: Sidebar Tabs (Entri & Hasil) (5 cols on desktop) */}
+        {/* Right Stage: Sidebar Tabs (Entri & Hasil) */}
         <section className="lg:col-span-5 xl:col-span-4 h-full min-h-[460px] lg:min-h-[600px] flex flex-col">
           <SidebarTabs
             items={items}

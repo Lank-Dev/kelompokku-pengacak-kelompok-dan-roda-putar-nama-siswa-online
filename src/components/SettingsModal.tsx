@@ -2,8 +2,6 @@ import React, { useState } from 'react'
 import {
   X,
   Sliders,
-  Volume2,
-  VolumeX,
   Sparkles,
   Palette,
   MessageSquare,
@@ -28,7 +26,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onUpdateSettings,
   onClose,
 }) => {
-  const [activeTab, setActiveTab] = useState<'during' | 'after' | 'appearance'>('during')
+  const [activeTab, setActiveTab] = useState<'spin' | 'after' | 'appearance'>('spin')
 
   if (!isOpen) return null
 
@@ -52,31 +50,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div>
               <h3 className="text-base font-bold">Kustomisasi Roda</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Pengaturan suara, durasi, dan tema visual
+                Pengaturan kecepatan putaran, pesan, dan tema visual
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
             className={`p-1.5 rounded-full transition-colors ${
-              darkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-400 hover:text-slate-800 hover:bg-slate-100'
+              darkMode
+                ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                : 'text-slate-400 hover:text-slate-800 hover:bg-slate-100'
             }`}
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Tab Navigation (Wheel of Names Style) */}
+        {/* Tab Navigation */}
         <div className="flex border-b border-slate-200 dark:border-slate-800 mt-2 text-xs font-semibold">
           <button
-            onClick={() => setActiveTab('during')}
+            onClick={() => setActiveTab('spin')}
             className={`flex-1 py-2.5 text-center border-b-2 transition-colors ${
-              activeTab === 'during'
+              activeTab === 'spin'
                 ? 'border-blue-600 text-blue-600 dark:text-blue-400'
                 : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
-            Saat Memutar
+            Kecepatan Putar
           </button>
           <button
             onClick={() => setActiveTab('after')}
@@ -101,11 +101,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Scrollable Body */}
-        <div className="flex-1 overflow-y-auto py-4 space-y-5 pr-1">
-          {/* Tab 1: During Spin */}
-          {activeTab === 'during' && (
+        <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
+          {/* Tab 1: Spin Speed */}
+          {activeTab === 'spin' && (
             <div className="space-y-4">
-              {/* Spin Duration */}
               <div
                 className={`p-4 rounded-2xl border ${
                   darkMode ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'
@@ -114,7 +113,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="flex justify-between items-center mb-2">
                   <label className="flex items-center gap-1.5 text-xs font-bold">
                     <Clock className="w-4 h-4 text-blue-500" />
-                    Durasi Putaran
+                    Durasi Putaran Roda
                   </label>
                   <span className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 px-2.5 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
                     {settings.spinDuration} detik
@@ -122,60 +121,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
                 <input
                   type="range"
-                  min="3"
-                  max="20"
+                  min="2"
+                  max="15"
                   step="1"
                   value={settings.spinDuration}
                   onChange={(e) => onUpdateSettings({ spinDuration: Number(e.target.value) })}
                   className="w-full h-2 bg-slate-300 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
                 />
-                <div className="flex justify-between text-[11px] text-slate-400 mt-1">
-                  <span>Cepat (3s)</span>
-                  <span>Standar (6s)</span>
-                  <span>Dramatis (20s)</span>
+                <div className="flex justify-between text-[11px] text-slate-400 mt-1.5">
+                  <span className="font-semibold text-emerald-600">Super Cepat (2s - 3s)</span>
+                  <span>Standar (5s)</span>
+                  <span>Santai (15s)</span>
                 </div>
               </div>
-
-              {/* Sound toggle */}
-              <button
-                onClick={() => onUpdateSettings({ soundEnabled: !settings.soundEnabled })}
-                className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all text-left ${
-                  settings.soundEnabled
-                    ? 'border-blue-500/60 bg-blue-50/50 dark:bg-blue-950/40'
-                    : darkMode
-                    ? 'bg-slate-950/60 border-slate-800'
-                    : 'bg-slate-50 border-slate-200'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`p-2 rounded-xl ${
-                      settings.soundEnabled
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
-                    }`}
-                  >
-                    {settings.soundEnabled ? (
-                      <Volume2 className="w-4 h-4" />
-                    ) : (
-                      <VolumeX className="w-4 h-4" />
-                    )}
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold">Suara Detak Roda (Ticking Sound)</div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Efek klik realistis saat roda berputar melewati jarum
-                    </div>
-                  </div>
-                </div>
-                <span
-                  className={`text-xs font-bold ${
-                    settings.soundEnabled ? 'text-blue-600' : 'text-slate-400'
-                  }`}
-                >
-                  {settings.soundEnabled ? 'Aktif' : 'Mati'}
-                </span>
-              </button>
             </div>
           )}
 
@@ -206,7 +164,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div>
                     <div className="text-xs font-bold">Animasi Konfeti</div>
                     <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Pesta konfeti meriah saat nama pemenang terpilih
+                      Pesta konfeti saat nama pemenang terpilih
                     </div>
                   </div>
                 </div>
@@ -219,7 +177,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </span>
               </button>
 
-              {/* Show Remove button toggle (Wheel of Names) */}
+              {/* Show Remove button toggle */}
               <button
                 onClick={() => onUpdateSettings({ showRemoveButton: !settings.showRemoveButton })}
                 className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all text-left ${
@@ -241,9 +199,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <Trash2 className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="text-xs font-bold">Tampilkan Tombol Hapus Pemenang</div>
+                    <div className="text-xs font-bold">Tombol Hapus Pemenang</div>
                     <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Memungkinkan menghapus pemenang agar tidak terpilih lagi
+                      Memungkinkan langsung hapus nama pemenang dari roda
                     </div>
                   </div>
                 </div>
@@ -278,7 +236,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   }`}
                 />
                 <p className="text-[10px] text-slate-400 mt-1">
-                  Ketik pesan ucapan. Gunakan <code className="font-mono text-blue-500">{"{name}"}</code> untuk posisi nama pemenang.
+                  Gunakan <code className="font-mono text-blue-500">{"{name}"}</code> untuk posisi nama pemenang.
                 </p>
               </div>
             </div>

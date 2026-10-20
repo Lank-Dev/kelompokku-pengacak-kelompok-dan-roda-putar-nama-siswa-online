@@ -4,10 +4,13 @@
 class AudioEngine {
   private ctx: AudioContext | null = null
   private isMuted: boolean = false
+  private lastTickTime: number = 0
 
   private initCtx() {
     if (!this.ctx) {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
       this.ctx = new AudioCtx()
     }
     if (this.ctx.state === 'suspended') {
@@ -21,6 +24,13 @@ class AudioEngine {
 
   public playTick(velocityMultiplier: number = 1.0) {
     if (this.isMuted) return
+
+    // Safe rate limiting for large collections (up to hundreds of names)
+    // Prevents audio buffer overflow and clipping
+    const nowMs = performance.now()
+    if (nowMs - this.lastTickTime < 24) return
+    this.lastTickTime = nowMs
+
     try {
       this.initCtx()
       if (!this.ctx) return
@@ -29,15 +39,14 @@ class AudioEngine {
       const osc = this.ctx.createOscillator()
       const gain = this.ctx.createGain()
 
-      // Mechanical wooden / plastic peg ticker click
-      // Base frequency between 750Hz and 1100Hz modulated slightly by speed
+      // Crisp mechanical ticker click
       const baseFreq = 800 + Math.min(velocityMultiplier * 150, 400)
       osc.type = 'triangle'
       osc.frequency.setValueAtTime(baseFreq, now)
       osc.frequency.exponentialRampToValueAtTime(150, now + 0.035)
 
-      // Very quick snap envelope
-      gain.gain.setValueAtTime(0.25, now)
+      // Snap envelope
+      gain.gain.setValueAtTime(0.22, now)
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.035)
 
       osc.connect(gain)
@@ -46,7 +55,7 @@ class AudioEngine {
       osc.start(now)
       osc.stop(now + 0.04)
     } catch {
-      // AudioContext might be blocked before first user interaction
+      // AudioContext might be blocked before first user gesture
     }
   }
 
@@ -86,7 +95,6 @@ class AudioEngine {
 
       const now = this.ctx.currentTime
 
-      // Celebratory chord progression: C4, E4, G4, C5, followed by sustained bright major chord
       const notes = [
         { freq: 523.25, time: 0.0, dur: 0.15 }, // C5
         { freq: 659.25, time: 0.12, dur: 0.15 }, // E5
