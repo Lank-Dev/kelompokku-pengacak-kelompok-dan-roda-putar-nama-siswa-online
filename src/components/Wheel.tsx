@@ -74,7 +74,8 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     const height = canvas.height / dpr
     const cx = width / 2
     const cy = height / 2
-    const radius = Math.min(cx, cy) - 24
+    // Generous padding so rim, shadow, and right flapper never get clipped
+    const radius = Math.min(cx, cy) - 36
 
     ctx.clearRect(0, 0, width, height)
 
@@ -176,15 +177,16 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
           22,
           Math.max(8.5, Math.floor(arcLengthAtRim * 0.72))
         )
-        if (total <= 6) fontSize = 24
-        else if (total <= 12) fontSize = 18
-        else if (total <= 30) fontSize = 14
-        else if (total <= 60) fontSize = 11.5
-        else if (total <= 100) fontSize = 9.5
+        if (total <= 4) fontSize = 22
+        else if (total <= 8) fontSize = 18
+        else if (total <= 14) fontSize = 15
+        else if (total <= 24) fontSize = 12.5
+        else if (total <= 36) fontSize = 11
+        else if (total <= 60) fontSize = 10
         else fontSize = 8.5
 
-        ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`
-        const maxTextWidth = radius - (radius * 0.22 + 22)
+        ctx.font = `bold ${fontSize}px Tahoma, Verdana, Arial, sans-serif`
+        const maxTextWidth = radius - (radius * 0.18 + 18)
         const fittedText = truncateText(ctx, text, maxTextWidth)
 
         // Pass 1: Crisp Outline stroke for 100% legibility against ANY background
@@ -326,7 +328,9 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
       const canvas = canvasRef.current
       if (!container || !canvas) return
 
-      const size = Math.min(container.clientWidth, container.clientHeight, 720)
+      const clientW = container.clientWidth || 360
+      const clientH = container.clientHeight > 100 ? container.clientHeight : clientW
+      const size = Math.max(260, Math.min(clientW, clientH, 520))
       const dpr = window.devicePixelRatio || 1
 
       canvas.width = size * dpr
@@ -477,7 +481,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
   return (
     <div
       ref={containerRef}
-      className="relative flex flex-col items-center justify-center w-full h-full min-h-[360px] p-2"
+      className="relative flex flex-col items-center justify-center w-full max-w-[480px] aspect-square p-2 mx-auto"
     >
       <canvas
         ref={canvasRef}
