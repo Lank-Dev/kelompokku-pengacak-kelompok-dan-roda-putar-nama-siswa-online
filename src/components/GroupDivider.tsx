@@ -540,18 +540,23 @@ export const GroupDivider: React.FC<GroupDividerProps> = ({ darkMode }) => {
                 >
                   {/* Group Header */}
                   <div
-                    className="px-3.5 py-2.5 flex items-center justify-between border-b"
+                    className="px-3.5 py-2.5 flex items-center justify-between border-b transition-colors"
                     style={{
-                      borderBottomColor: darkMode ? '#334155' : '#e2e8f0',
+                      borderBottomColor: darkMode ? (palette.darkBorder || '#334155') : (palette.border || '#e2e8f0'),
                       backgroundColor: darkMode ? palette.darkBg : palette.bg,
                     }}
                   >
                     <div className="flex items-center gap-2">
                       <span
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs"
                         style={{ backgroundColor: group.color }}
                       />
-                      <span className="font-bold text-xs text-slate-900 dark:text-white">
+                      <span
+                        className="font-bold text-xs tracking-tight"
+                        style={{
+                          color: darkMode ? (palette.darkText || '#f8fafc') : (palette.text || '#0f172a'),
+                        }}
+                      >
                         {group.name}
                       </span>
                     </div>
