@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Trophy } from 'lucide-react'
 import { Header } from './components/Header'
 import { Wheel } from './components/Wheel'
 import { SidebarTabs } from './components/SidebarTabs'
@@ -57,6 +58,7 @@ export function App() {
   const [isSpinning, setIsSpinning] = useState<boolean>(false)
   const [currentWinner, setCurrentWinner] = useState<string | null>(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false)
+  const [sidebarTab, setSidebarTab] = useState<'entries' | 'results'>('entries')
 
   // Toggle dark class on root document
   useEffect(() => {
@@ -121,6 +123,7 @@ export function App() {
       round: history.length + 1,
     }
     setHistory((prev) => [record, ...prev])
+    setSidebarTab('results')
   }, [history.length])
 
   // Remove winner from list action
@@ -255,6 +258,49 @@ export function App() {
             <span className="hidden sm:inline">atau klik roda untuk memutar</span>
             <span className="sm:hidden font-extrabold">Ketuk roda untuk memutar</span>
           </div>
+
+          {/* Persistent Winner Banner Card (Ultra High Contrast in White Mode) */}
+          {history.length > 0 && !isSpinning && (
+            <div className="mt-4 w-full max-w-lg p-3.5 sm:p-4 rounded-2xl border-2 border-amber-400 bg-amber-50 dark:bg-amber-950/60 dark:border-amber-500 shadow-sm flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-2 duration-150">
+              <div className="flex items-center gap-3 truncate">
+                <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 shadow-xs">
+                  <Trophy className="w-5 h-5 font-black" />
+                </div>
+                <div className="truncate">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-300 bg-amber-200/80 dark:bg-amber-900/60 px-2 py-0.5 rounded-md">
+                      Putaran #{history[0].round} • Pemenang Terakhir
+                    </span>
+                    <span className="text-[11px] text-slate-600 dark:text-slate-400 font-semibold">
+                      {history[0].timestamp}
+                    </span>
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black text-slate-950 dark:text-white truncate mt-0.5">
+                    {history[0].name}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => setCurrentWinner(history[0].name)}
+                  className="px-3 py-1.5 text-xs font-bold rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-900 dark:text-white transition-colors cursor-pointer shadow-xs"
+                  title="Lihat modal perayaan pemenang"
+                >
+                  Lihat
+                </button>
+                {settings.showRemoveButton && (
+                  <button
+                    onClick={() => handleRemoveWinner(history[0].name)}
+                    className="px-3 py-1.5 text-xs font-bold rounded-lg bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white transition-colors cursor-pointer shadow-xs"
+                    title="Hapus pemenang ini dari daftar roda"
+                  >
+                    Hapus
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Right Stage: Sidebar Tabs (Entri & Hasil) */}
@@ -262,8 +308,10 @@ export function App() {
           <SidebarTabs
             items={items}
             history={history}
+            activeTab={sidebarTab}
             disabled={isSpinning}
             darkMode={settings.darkMode}
+            onTabChange={setSidebarTab}
             onChangeItems={setItems}
             onShuffle={handleShuffle}
             onSort={handleSort}

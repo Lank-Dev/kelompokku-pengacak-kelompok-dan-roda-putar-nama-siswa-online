@@ -18,8 +18,10 @@ import { PRESET_LISTS } from '../utils/presets'
 interface SidebarTabsProps {
   items: string[]
   history: WinnerRecord[]
+  activeTab: 'entries' | 'results'
   disabled?: boolean
   darkMode: boolean
+  onTabChange: (tab: 'entries' | 'results') => void
   onChangeItems: (items: string[]) => void
   onShuffle: () => void
   onSort: () => void
@@ -28,11 +30,23 @@ interface SidebarTabsProps {
   onRemoveHistoryItem: (id: string) => void
 }
 
+function downloadTextFile(content: string, filename: string) {
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export const SidebarTabs: React.FC<SidebarTabsProps> = ({
   items,
   history,
+  activeTab,
   disabled = false,
   darkMode,
+  onTabChange,
   onChangeItems,
   onShuffle,
   onSort,
@@ -40,7 +54,6 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
   onClearHistory,
   onRemoveHistoryItem,
 }) => {
-  const [activeTab, setActiveTab] = useState<'entries' | 'results'>('entries')
   const [showPresets, setShowPresets] = useState(false)
   const [copiedEntries, setCopiedEntries] = useState(false)
   const [copiedResults, setCopiedResults] = useState(false)
@@ -71,13 +84,7 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
   }
 
   const handleExportEntries = () => {
-    const blob = new Blob([items.join('\n')], { type: 'text/plain;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `kocok-nama-${Date.now()}.txt`
-    a.click()
-    URL.revokeObjectURL(url)
+    downloadTextFile(items.join('\n'), `kocok-nama-${Date.now()}.txt`)
   }
 
   const handleCopyResults = () => {
@@ -90,7 +97,6 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
     setTimeout(() => setCopiedResults(false), 2000)
   }
 
-  // Remove duplicate entries
   const handleRemoveDuplicates = () => {
     const seen = new Set<string>()
     const deduplicated: string[] = []
@@ -103,7 +109,6 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
     onChangeItems(deduplicated)
   }
 
-  // Filtered results for search
   const filteredHistory = useMemo(() => {
     if (!searchQuery.trim()) return history
     const q = searchQuery.toLowerCase()
@@ -125,10 +130,10 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
         }`}
       >
         <button
-          onClick={() => setActiveTab('entries')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all ${
+          onClick={() => onTabChange('entries')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
             activeTab === 'entries'
-              ? 'border-blue-600 text-blue-700 dark:text-blue-400'
+              ? 'border-blue-600 text-blue-700 dark:text-blue-400 font-black'
               : darkMode
               ? 'border-transparent text-slate-400 hover:text-slate-100'
               : 'border-transparent text-slate-600 hover:text-slate-900'
@@ -148,19 +153,19 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
         </button>
 
         <button
-          onClick={() => setActiveTab('results')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all ${
+          onClick={() => onTabChange('results')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
             activeTab === 'results'
-              ? 'border-amber-600 text-amber-700 dark:text-amber-400'
+              ? 'border-amber-600 text-amber-700 dark:text-amber-400 font-black'
               : darkMode
               ? 'border-transparent text-slate-400 hover:text-slate-100'
               : 'border-transparent text-slate-600 hover:text-slate-900'
           }`}
         >
-          <Trophy className="w-4 h-4" />
+          <Trophy className="w-4 h-4 text-amber-500" />
           <span>Hasil</span>
           {history.length > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-500 text-slate-950">
+            <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-black bg-amber-500 text-slate-950">
               {history.length}
             </span>
           )}
@@ -175,7 +180,7 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
             <button
               onClick={onShuffle}
               disabled={disabled || items.length < 2}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100 shadow-xs"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100 shadow-xs cursor-pointer"
               title="Acak urutan nama"
             >
               <Shuffle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
@@ -185,7 +190,7 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
             <button
               onClick={onSort}
               disabled={disabled || items.length < 2}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100 shadow-xs"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100 shadow-xs cursor-pointer"
               title="Urutkan alfabetis A-Z"
             >
               <ArrowDownAZ className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -197,7 +202,7 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
               <button
                 onClick={() => setShowPresets(!showPresets)}
                 disabled={disabled}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100 shadow-xs"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100 shadow-xs cursor-pointer"
                 title="Pilih contoh preset (15, 50, 100, 250 orang)"
               >
                 <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
@@ -206,21 +211,21 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
 
               {showPresets && (
                 <div
-                  className={`absolute left-0 mt-2 w-72 max-h-80 overflow-y-auto p-2 rounded-xl shadow-2xl z-40 border animate-in fade-in zoom-in-95 ${
+                  className={`absolute left-0 mt-2 w-72 max-h-80 overflow-y-auto p-2 rounded-xl shadow-2xl z-40 border-2 animate-in fade-in zoom-in-95 ${
                     darkMode
                       ? 'bg-slate-900 border-slate-700 text-slate-100'
                       : 'bg-white border-slate-300 text-slate-900'
                   }`}
                 >
                   <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-2 py-1 mb-1">
-                    Pilihan Preset Skala Besar:
+                    Pilihan Preset:
                   </div>
                   <div className="space-y-1">
                     {PRESET_LISTS.map((preset) => (
                       <button
                         key={preset.id}
                         onClick={() => handleSelectPreset(preset.items)}
-                        className={`w-full text-left p-2.5 rounded-lg transition-colors group ${
+                        className={`w-full text-left p-2.5 rounded-lg transition-colors cursor-pointer group ${
                           darkMode ? 'hover:bg-slate-800' : 'hover:bg-slate-100'
                         }`}
                       >
@@ -244,7 +249,7 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
             {duplicateCount > 0 && (
               <button
                 onClick={handleRemoveDuplicates}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold transition-colors bg-amber-100 hover:bg-amber-200 dark:bg-amber-950 dark:hover:bg-amber-900 border-amber-400 dark:border-amber-600 text-amber-900 dark:text-amber-200 shadow-xs"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold transition-colors bg-amber-100 hover:bg-amber-200 dark:bg-amber-950 dark:hover:bg-amber-900 border-amber-400 dark:border-amber-600 text-amber-900 dark:text-amber-200 shadow-xs cursor-pointer"
                 title={`Hapus ${duplicateCount} nama duplikat`}
               >
                 <FilterX className="w-3.5 h-3.5 text-amber-700 dark:text-amber-300" />
@@ -255,7 +260,7 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
             <button
               onClick={handleCopyEntries}
               disabled={items.length === 0}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100 shadow-xs"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100 shadow-xs cursor-pointer"
               title="Salin semua nama"
             >
               {copiedEntries ? (
@@ -274,7 +279,7 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
             <button
               onClick={handleExportEntries}
               disabled={items.length === 0}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100 shadow-xs ml-auto"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100 shadow-xs ml-auto cursor-pointer"
               title="Unduh file (.txt)"
             >
               <FileDown className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
@@ -284,7 +289,7 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
             <button
               onClick={onClearItems}
               disabled={disabled || items.length === 0}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900/80 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-200 shadow-xs"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900/80 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-200 shadow-xs cursor-pointer"
               title="Kosongkan semua daftar"
             >
               <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
@@ -292,7 +297,7 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
             </button>
           </div>
 
-          {/* Textarea for entries with High-Contrast Typography */}
+          {/* Textarea for entries */}
           <div className="flex-1 flex flex-col h-full">
             <textarea
               value={textValue}
@@ -316,12 +321,12 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
         </div>
       )}
 
-      {/* Content for Results Tab with High Contrast */}
+      {/* Content for Results Tab (Ultra High-Contrast in White Mode) */}
       {activeTab === 'results' && (
         <div className="flex-1 flex flex-col p-3.5 overflow-hidden">
           {/* Action Toolbar for Results */}
-          <div className="flex items-center justify-between pb-3 border-b mb-2.5 border-slate-200 dark:border-slate-800 text-xs">
-            <div className="font-bold text-slate-900 dark:text-slate-100">
+          <div className="flex items-center justify-between pb-3 border-b mb-3 border-slate-200 dark:border-slate-800 text-xs">
+            <div className="font-black text-sm text-slate-950 dark:text-slate-100">
               Total {history.length} Pemenang
             </div>
 
@@ -329,7 +334,7 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
               <button
                 onClick={handleCopyResults}
                 disabled={history.length === 0}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100 shadow-xs"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100 shadow-xs cursor-pointer"
                 title="Salin hasil ke clipboard"
               >
                 {copiedResults ? (
@@ -348,7 +353,7 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
               <button
                 onClick={onClearHistory}
                 disabled={history.length === 0}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900/80 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-200 shadow-xs"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900/80 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-200 shadow-xs cursor-pointer"
                 title="Hapus semua riwayat hasil"
               >
                 <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
@@ -366,7 +371,7 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Cari nama pemenang..."
-                className={`w-full pl-9 pr-3 py-2 rounded-xl text-xs font-medium border focus:outline-none focus:ring-2 focus:ring-blue-600 ${
+                className={`w-full pl-9 pr-3 py-2 rounded-xl text-xs font-medium border-2 focus:outline-none focus:ring-2 focus:ring-blue-600 ${
                   darkMode
                     ? 'bg-slate-950 border-slate-700 text-slate-100 placeholder:text-slate-500'
                     : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-500'
@@ -376,50 +381,61 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
           )}
 
           {/* Results List */}
-          <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+          <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
             {filteredHistory.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center p-6 text-slate-500 dark:text-slate-400">
-                <Trophy className="w-12 h-12 mb-2 opacity-40 text-amber-500" />
-                <p className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                <Trophy className="w-14 h-14 mb-2 text-amber-500 opacity-60" />
+                <p className="text-sm font-extrabold text-slate-800 dark:text-slate-100">
                   {searchQuery ? 'Tidak ada nama yang cocok.' : 'Belum ada pemenang yang tercatat.'}
                 </p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
                   Putar roda untuk melihat hasil pemenang di sini!
                 </p>
               </div>
             ) : (
-              filteredHistory.map((record) => (
-                <div
-                  key={record.id}
-                  className={`flex items-center justify-between p-3 rounded-xl border text-xs transition-colors group shadow-2xs ${
-                    darkMode
-                      ? 'bg-slate-800/80 border-slate-700 hover:bg-slate-800'
-                      : 'bg-slate-50 border-slate-300 hover:bg-blue-50/60'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 truncate">
-                    <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-amber-500 text-slate-950 font-mono text-xs font-extrabold shrink-0 shadow-xs">
-                      #{record.round}
-                    </span>
-                    <div className="truncate">
-                      <div className="font-extrabold text-sm text-slate-900 dark:text-slate-100 truncate">
-                        {record.name}
-                      </div>
-                      <div className="text-[11px] text-slate-600 dark:text-slate-400 font-medium">
-                        {record.timestamp}
+              filteredHistory.map((record, idx) => {
+                const isLatest = idx === 0 && !searchQuery
+                return (
+                  <div
+                    key={record.id}
+                    className={`relative flex items-center justify-between p-3.5 rounded-xl border-2 text-xs transition-all group ${
+                      isLatest
+                        ? 'border-amber-400 bg-amber-50/80 dark:bg-amber-950/40 shadow-sm'
+                        : darkMode
+                        ? 'bg-slate-800/80 border-slate-700 hover:bg-slate-800'
+                        : 'bg-slate-50 border-slate-300 hover:bg-blue-50/70'
+                    }`}
+                  >
+                    {isLatest && (
+                      <span className="absolute -top-2.5 right-3 px-2 py-0.2 bg-amber-500 text-slate-950 font-black text-[10px] rounded-full uppercase tracking-wider shadow-2xs">
+                        Pemenang Terbaru
+                      </span>
+                    )}
+
+                    <div className="flex items-center gap-3 truncate">
+                      <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-500 text-slate-950 font-mono text-xs font-black shrink-0 shadow-xs">
+                        #{record.round}
+                      </span>
+                      <div className="truncate">
+                        <div className="font-black text-sm sm:text-base text-slate-950 dark:text-white truncate">
+                          {record.name}
+                        </div>
+                        <div className="text-[11px] text-slate-600 dark:text-slate-400 font-semibold mt-0.5">
+                          {record.timestamp}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <button
-                    onClick={() => onRemoveHistoryItem(record.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-500 hover:text-rose-600 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-950/60 transition-all shrink-0"
-                    title="Hapus catatan ini"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))
+                    <button
+                      onClick={() => onRemoveHistoryItem(record.id)}
+                      className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-500 hover:text-rose-600 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-950/60 transition-all shrink-0 cursor-pointer"
+                      title="Hapus catatan ini"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )
+              })
             )}
           </div>
         </div>

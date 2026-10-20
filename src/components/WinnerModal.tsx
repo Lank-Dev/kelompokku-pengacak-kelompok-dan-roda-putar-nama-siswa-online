@@ -34,7 +34,7 @@ export const WinnerModal: React.FC<WinnerModalProps> = ({
     const end = Date.now() + duration
 
     confetti({
-      particleCount: 110,
+      particleCount: 120,
       spread: 90,
       origin: { y: 0.6 },
     })
@@ -44,13 +44,13 @@ export const WinnerModal: React.FC<WinnerModalProps> = ({
         return clearInterval(interval)
       }
       confetti({
-        particleCount: 35,
+        particleCount: 40,
         angle: 60,
         spread: 60,
         origin: { x: 0, y: 0.7 },
       })
       confetti({
-        particleCount: 35,
+        particleCount: 40,
         angle: 120,
         spread: 60,
         origin: { x: 1, y: 0.7 },
@@ -67,12 +67,12 @@ export const WinnerModal: React.FC<WinnerModalProps> = ({
     : 'Kami punya pemenang!'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-in fade-in duration-150">
       <div
-        className={`relative w-full max-w-md rounded-3xl p-6 sm:p-8 text-center shadow-2xl border transform transition-all scale-100 animate-in zoom-in-95 duration-150 ${
+        className={`relative w-full max-w-lg rounded-3xl p-6 sm:p-10 text-center shadow-2xl border-2 transform transition-all scale-100 animate-in zoom-in-95 duration-150 ${
           darkMode
-            ? 'bg-slate-900 border-slate-700 text-white shadow-black/80'
-            : 'bg-white border-slate-300 text-slate-900 shadow-2xl'
+            ? 'bg-slate-900 border-slate-700 text-white shadow-black/90'
+            : 'bg-white border-slate-300 text-slate-950 shadow-2xl'
         }`}
         role="dialog"
         aria-modal="true"
@@ -90,55 +90,62 @@ export const WinnerModal: React.FC<WinnerModalProps> = ({
           <X className="w-5 h-5" />
         </button>
 
-        {/* Trophy Icon */}
-        <div className="relative inline-flex items-center justify-center w-16 h-16 mb-3 bg-gradient-to-tr from-amber-500 to-yellow-300 rounded-2xl text-slate-950 shadow-md shadow-amber-500/30">
-          <Trophy className="w-8 h-8 animate-bounce" />
+        {/* Floating Trophy Icon */}
+        <div className="relative inline-flex items-center justify-center w-20 h-20 mb-3 bg-gradient-to-tr from-amber-500 to-yellow-400 rounded-3xl text-slate-950 shadow-lg shadow-amber-500/40">
+          <Trophy className="w-10 h-10 animate-bounce" />
+          <div className="absolute inset-0 rounded-3xl border-2 border-yellow-200/60 animate-ping opacity-30 pointer-events-none" />
         </div>
 
         {/* Round Badge */}
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 mb-2 text-xs font-bold tracking-wide uppercase bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40 rounded-full">
-          <Sparkles className="w-3.5 h-3.5" />
-          Putaran #{round}
+        <div className="flex justify-center mb-2">
+          <span className="inline-flex items-center gap-1.5 px-3.5 py-1 text-xs font-black tracking-wider uppercase bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-700 rounded-full shadow-2xs">
+            <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+            Putaran #{round}
+          </span>
         </div>
 
-        {/* Winning Headline with High Contrast */}
-        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">
+        {/* Celebratory Message Header */}
+        <h3 className="text-sm sm:text-base font-bold text-slate-600 dark:text-slate-300 mb-2">
           {displayMessage}
         </h3>
 
-        {/* Big Winning Name Display */}
+        {/* GIGANTIC Winning Name Display (100% High-Contrast in White Mode) */}
         <div
-          className={`my-4 p-5 rounded-2xl border-2 shadow-inner ${
+          className={`my-5 p-6 sm:p-8 rounded-2xl border-2 text-center transition-all ${
             darkMode
-              ? 'bg-slate-950 border-slate-700'
-              : 'bg-slate-50 border-slate-300'
+              ? 'bg-slate-950 border-amber-400/80 shadow-lg shadow-black/60'
+              : 'bg-amber-50/90 border-amber-400 shadow-md ring-4 ring-amber-100/80'
           }`}
         >
-          <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-blue-700 dark:text-yellow-400 break-words drop-shadow-xs">
+          <div className="text-[11px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-400 mb-1.5 flex items-center justify-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Pemenang Terpilih</span>
+          </div>
+          <h2 className="text-4xl sm:text-6xl font-black tracking-tight text-slate-950 dark:text-amber-300 break-words leading-tight drop-shadow-xs">
             {winner}
           </h2>
         </div>
 
-        <p className="text-xs text-slate-600 dark:text-slate-400 font-semibold mb-5">
-          Tersisa {remainingCount} nama di roda putar
+        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-bold mb-6">
+          Tersisa <span className="text-blue-600 dark:text-blue-400">{remainingCount}</span> nama di dalam roda putar
         </p>
 
-        {/* Action Buttons */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        {/* Action Buttons (Wheel of Names: Hapus & Tutup) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {showRemoveButton && (
             <button
               onClick={() => onRemoveWinner(winner)}
-              className="flex items-center justify-center gap-2 px-4 py-3 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-extrabold text-xs rounded-xl shadow-md transition-all hover:scale-[1.02]"
-              title="Hapus nama pemenang dari roda"
+              className="flex items-center justify-center gap-2 px-5 py-3.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-black text-sm rounded-xl shadow-md transition-all hover:scale-[1.02] cursor-pointer"
+              title="Hapus nama pemenang dari roda agar tidak terpilih lagi"
             >
               <Trash2 className="w-4 h-4" />
-              Hapus
+              Hapus Pemenang
             </button>
           )}
 
           <button
             onClick={onClose}
-            className={`flex items-center justify-center gap-2 px-4 py-3 font-extrabold text-xs rounded-xl border transition-all hover:scale-[1.02] shadow-xs ${
+            className={`flex items-center justify-center gap-2 px-5 py-3.5 font-black text-sm rounded-xl border-2 transition-all hover:scale-[1.02] shadow-xs cursor-pointer ${
               darkMode
                 ? 'bg-slate-800 hover:bg-slate-700 text-white border-slate-600'
                 : 'bg-slate-100 hover:bg-slate-200 text-slate-900 border-slate-300'
@@ -150,9 +157,9 @@ export const WinnerModal: React.FC<WinnerModalProps> = ({
 
         <button
           onClick={onSpinAgain}
-          className="mt-3.5 inline-flex items-center justify-center gap-1.5 text-xs text-blue-700 dark:text-blue-400 hover:underline font-bold"
+          className="mt-4 inline-flex items-center justify-center gap-2 text-sm text-blue-700 dark:text-blue-400 hover:underline font-extrabold cursor-pointer"
         >
-          <RotateCw className="w-3.5 h-3.5" />
+          <RotateCw className="w-4 h-4" />
           Putar Lagi Sekarang
         </button>
       </div>
