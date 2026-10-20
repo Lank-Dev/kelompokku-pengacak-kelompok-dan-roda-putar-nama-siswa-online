@@ -62,12 +62,12 @@ export function App() {
   const isSecretModeRef = useRef<boolean>(false)
   const priorityPoolRef = useRef<string[]>([])
   const remainingPoolRef = useRef<string[]>([])
+  const secretGroupIndicesRef = useRef<Set<number>>(new Set())
   const wheelItemsRef = useRef<string[]>([])
   const groupsRef = useRef<GroupResult[]>([])
   const currentGroupIdxRef = useRef<number>(0)
   const totalCountRef = useRef<number>(0)
   const isAutoSpinningRef = useRef<boolean>(false)
-  const priorityGroupCountRef = useRef<number>(2)
 
   // Clear pending timers on unmount
   useEffect(() => {
@@ -85,19 +85,11 @@ export function App() {
     isSecretModeRef.current = setup.isSecretMode
     priorityPoolRef.current = [...setup.priorityNames]
     remainingPoolRef.current = [...setup.remainingNames]
+    secretGroupIndicesRef.current = new Set(setup.secretGroupIndices)
     groupsRef.current = setup.groups.map((g) => ({ ...g, members: [] }))
     currentGroupIdxRef.current = 0
     totalCountRef.current = setup.totalCount
     setTotalCount(setup.totalCount)
-
-    if (setup.isSecretMode && setup.totalCount > 0) {
-      priorityGroupCountRef.current = Math.max(
-        1,
-        Math.min(count, Math.round(setup.priorityNames.length / (setup.totalCount / count)))
-      )
-    } else {
-      priorityGroupCountRef.current = 2
-    }
 
     wheelItemsRef.current = [...setup.allNames]
     setWheelItems([...setup.allNames])
@@ -121,20 +113,34 @@ export function App() {
   const getNextWinner = useCallback((currentItems: string[]): string => {
     if (currentItems.length === 0) return ''
 
-    // If secret mode is active and we are still filling the priority groups (Kelompok 1 & 2):
-    if (
-      isSecretModeRef.current &&
-      currentGroupIdxRef.current < priorityGroupCountRef.current &&
-      priorityPoolRef.current.length > 0
-    ) {
-      const validPriority = priorityPoolRef.current.filter((name) => currentItems.includes(name))
-      if (validPriority.length > 0) {
-        const randIdx = Math.floor(Math.random() * validPriority.length)
-        return validPriority[randIdx]
+    const currentIdx = currentGroupIdxRef.current
+
+    // If secret mode is active:
+    if (isSecretModeRef.current) {
+      const isPriorityTarget = secretGroupIndicesRef.current.has(currentIdx)
+
+      if (isPriorityTarget) {
+        // Priority group (must receive Nomor 1 or promoted member)
+        const validPriority = priorityPoolRef.current.filter((name) =>
+          currentItems.includes(name)
+        )
+        if (validPriority.length > 0) {
+          const randIdx = Math.floor(Math.random() * validPriority.length)
+          return validPriority[randIdx]
+        }
+      } else {
+        // Non-priority group (must receive Nomor 2 or 3 member)
+        const validRemaining = remainingPoolRef.current.filter((name) =>
+          currentItems.includes(name)
+        )
+        if (validRemaining.length > 0) {
+          const randIdx = Math.floor(Math.random() * validRemaining.length)
+          return validRemaining[randIdx]
+        }
       }
     }
 
-    // Normal mode or subsequent groups (Kelompok 3..6): pick any remaining item on the wheel
+    // Default mode or fallback: pick any remaining item on the wheel
     const randIdx = Math.floor(Math.random() * currentItems.length)
     return currentItems[randIdx]
   }, [])
@@ -170,9 +176,10 @@ export function App() {
       // 2. Remove winner from current wheel items
       wheelItemsRef.current = wheelItemsRef.current.filter((item) => item !== winner)
 
-      // 3. Remove winner from priorityPool if present
+      // 3. Remove winner from pools if present
       if (isSecretModeRef.current) {
         priorityPoolRef.current = priorityPoolRef.current.filter((item) => item !== winner)
+        remainingPoolRef.current = remainingPoolRef.current.filter((item) => item !== winner)
       }
 
       // 4. Check if active group has reached capacity
@@ -294,40 +301,41 @@ export function App() {
 
   return (
     <div
-      className={`min-h-screen flex flex-col font-sans transition-colors duration-200 ${
+      className={`h-screen max-h-screen w-full flex flex-col font-sans overflow-hidden transition-colors duration-200 ${
         darkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'
       }`}
     >
       {/* ========================================================= */}
-      {/* HEADER: Kelompokku, Selector 1..10, Theme Toggle           */}
+      {/* HEADER: Kelompokku, Refined Group Selector, Theme Toggle  */}
       {/* ========================================================= */}
-      <header className={`w-full border-b px-4 py-3 sm:px-6 flex items-center justify-between transition-colors ${
-        darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-      }`}>
-        <div className="flex items-center gap-2">
-          <span className="font-extrabold text-lg sm:text-xl tracking-tight text-blue-600 dark:text-blue-400 select-none">
+      <header
+        className={`flex-none h-14 sm:h-16 border-b px-4 sm:px-6 flex items-center justify-between transition-colors ${
+          darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200'
+        }`}
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black text-sm shadow-xs select-none">
+            K
+          </div>
+          <span className="font-extrabold text-lg sm:text-xl tracking-tight text-slate-900 dark:text-white select-none">
             Kelompokku
           </span>
         </div>
 
-        <div className="flex items-center gap-3 sm:gap-4">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
             <label
               htmlFor="group-select"
-              className="text-xs sm:text-sm font-semibold select-none text-slate-600 dark:text-slate-300"
+              className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 select-none whitespace-nowrap"
             >
-              Kelompok:
+              Jumlah Kelompok:
             </label>
             <select
               id="group-select"
               value={groupCount}
               disabled={isSpinning || isAutoSpinning}
               onChange={(e) => handleGroupCountChange(Number(e.target.value))}
-              className={`px-3 py-1.5 rounded-xl border text-xs sm:text-sm font-bold cursor-pointer transition-colors focus:outline-hidden focus:ring-2 focus:ring-blue-500 ${
-                darkMode
-                  ? 'bg-slate-950 border-slate-800 text-white'
-                  : 'bg-slate-50 border-slate-300 text-slate-900'
-              }`}
+              className="bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 font-black text-xs sm:text-sm px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs cursor-pointer focus:outline-hidden"
             >
               {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
                 <option key={num} value={num}>
@@ -352,15 +360,16 @@ export function App() {
       </header>
 
       {/* ========================================================= */}
-      {/* MAIN: 3 Kolom (Kiri: Roda, Tengah: Kelompok, Kanan: Nama)  */}
+      {/* MAIN: 3 Kolom Full-Height (Kiri: Roda, Tengah: Kelompok, Kanan: Nama) */}
       {/* ========================================================= */}
-      <main className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+      <main className="flex-1 min-h-0 w-full p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch overflow-hidden">
         {/* ======================================================= */}
-        {/* 1. LEFT COLUMN: Wheel & Controls (col-span-4)           */}
+        {/* 1. LEFT COLUMN: Wheel & 4 Buttons (col-span-5)          */}
         {/* ======================================================= */}
-        <div className="lg:col-span-4 flex flex-col items-center gap-3.5 w-full">
+        <div className="lg:col-span-5 flex flex-col justify-between items-center h-full min-h-0 w-full">
+          {/* Wheel card takes available height without blowing screen */}
           <div
-            className={`w-full rounded-2xl border p-3 sm:p-4 shadow-xs flex flex-col items-center justify-center ${
+            className={`flex-1 min-h-0 w-full rounded-2xl border p-2 sm:p-3 shadow-xs flex items-center justify-center overflow-hidden ${
               darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300'
             }`}
           >
@@ -379,12 +388,12 @@ export function App() {
           </div>
 
           {/* 4 Action Buttons: Putar, Otomatis, Salin, Ulang */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 gap-2 w-full">
+          <div className="flex-none w-full grid grid-cols-4 gap-2 pt-2.5">
             {/* Putar */}
             <button
               onClick={handleSingleSpin}
               disabled={isSpinning || isAutoSpinning || isCompleted || wheelItems.length === 0}
-              className="min-h-[44px] px-3 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs shadow-xs active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer text-center"
+              className="min-h-[44px] px-2 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs sm:text-sm shadow-xs active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer text-center"
             >
               Putar
             </button>
@@ -393,7 +402,7 @@ export function App() {
             <button
               onClick={handleToggleAutoSpin}
               disabled={isCompleted || (wheelItems.length === 0 && !isAutoSpinning)}
-              className={`min-h-[44px] px-3 py-2.5 rounded-xl font-bold text-xs shadow-xs active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer text-center ${
+              className={`min-h-[44px] px-2 py-2.5 rounded-xl font-bold text-xs sm:text-sm shadow-xs active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer text-center ${
                 isAutoSpinning
                   ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse'
                   : darkMode
@@ -408,7 +417,7 @@ export function App() {
             <button
               onClick={handleCopyResults}
               disabled={groups.reduce((acc, g) => acc + g.members.length, 0) === 0}
-              className={`min-h-[44px] px-3 py-2.5 rounded-xl font-bold text-xs border shadow-xs active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer text-center ${
+              className={`min-h-[44px] px-2 py-2.5 rounded-xl font-bold text-xs sm:text-sm border shadow-xs active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer text-center ${
                 copied
                   ? 'bg-emerald-600 text-white border-emerald-600'
                   : darkMode
@@ -427,7 +436,7 @@ export function App() {
                 isAutoSpinning ||
                 groups.reduce((acc, g) => acc + g.members.length, 0) === 0
               }
-              className={`min-h-[44px] px-3 py-2.5 rounded-xl font-bold text-xs border shadow-xs active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer text-center ${
+              className={`min-h-[44px] px-2 py-2.5 rounded-xl font-bold text-xs sm:text-sm border shadow-xs active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer text-center ${
                 darkMode
                   ? 'border-slate-800 hover:bg-rose-950/40 text-rose-400'
                   : 'border-slate-300 hover:bg-rose-50 text-rose-600'
@@ -439,10 +448,20 @@ export function App() {
         </div>
 
         {/* ======================================================= */}
-        {/* 2. CENTER COLUMN: Hasil Kelompok (col-span-5)           */}
+        {/* 2. CENTER COLUMN: Hasil Kelompok (col-span-4)           */}
         {/* ======================================================= */}
-        <div className="lg:col-span-5 flex flex-col gap-3 w-full">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[calc(100vh-140px)] overflow-y-auto pr-1">
+        <div className="lg:col-span-4 flex flex-col h-full min-h-0 w-full">
+          <div className="flex-none flex items-center justify-between pb-2 px-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 select-none">
+              Hasil Kelompok
+            </span>
+            <span className="text-xs font-mono font-semibold text-slate-500 dark:text-slate-400">
+              {groups.reduce((acc, g) => acc + g.members.length, 0)}/{totalCount || 0} Terisi
+            </span>
+          </div>
+
+          {/* Group cards scroll INTERNALLY so the page never scrolls down */}
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1.5 custom-scrollbar">
             {groups.map((group, idx) => {
               const isActive = idx === currentGroupIdx && !isCompleted && wheelItems.length > 0
               const isFull = group.capacity > 0 && group.members.length >= group.capacity
@@ -461,7 +480,7 @@ export function App() {
                   }`}
                 >
                   {/* Group Card Header */}
-                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-slate-200 dark:border-slate-800">
                     <span className="font-bold text-sm text-slate-900 dark:text-white">
                       {group.name}
                     </span>
@@ -476,14 +495,15 @@ export function App() {
                     </span>
                   </div>
 
-                  {/* Members List */}
-                  <div className="space-y-1 min-h-[75px]">
+                  {/* Members List - Crisp, readable, zero cut-off */}
+                  <div className="space-y-1 min-h-[50px]">
                     {group.members.map((member, mIdx) => (
                       <div
                         key={mIdx}
-                        className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate py-0.5"
+                        className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2 py-0.5"
                       >
-                        {member}
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400 flex-shrink-0" />
+                        <span className="break-words leading-tight">{member}</span>
                       </div>
                     ))}
 
@@ -492,13 +512,14 @@ export function App() {
                       (_, eIdx) => (
                         <div
                           key={`empty-${eIdx}`}
-                          className={`text-xs truncate py-0.5 ${
+                          className={`text-xs flex items-center gap-2 py-0.5 ${
                             isActive && eIdx === 0
-                              ? 'text-blue-500 font-medium animate-pulse'
+                              ? 'text-blue-500 font-semibold animate-pulse'
                               : 'text-slate-300 dark:text-slate-700'
                           }`}
                         >
-                          {isActive && eIdx === 0 ? '...' : '—'}
+                          <span className="w-1.5 h-1.5 rounded-full bg-current opacity-40 flex-shrink-0" />
+                          <span>{isActive && eIdx === 0 ? 'Sedang diundi...' : '—'}</span>
                         </div>
                       )
                     )}
@@ -510,30 +531,30 @@ export function App() {
         </div>
 
         {/* ======================================================= */}
-        {/* 3. RIGHT COLUMN: Kolom Masukkan Nama (col-span-3)       */}
+        {/* 3. RIGHT COLUMN: Daftar Nama Sidebar Full (col-span-3)   */}
         {/* ======================================================= */}
-        <div className="lg:col-span-3 flex flex-col gap-2 w-full">
+        <div className="lg:col-span-3 flex flex-col h-full min-h-0 w-full">
           <div
-            className={`rounded-2xl border p-4 shadow-xs flex flex-col gap-2.5 ${
+            className={`h-full flex flex-col rounded-2xl border p-3.5 shadow-xs ${
               darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300'
             }`}
           >
-            <div className="flex items-center justify-between">
+            <div className="flex-none flex items-center justify-between pb-2">
               <span className="text-xs font-bold text-slate-700 dark:text-slate-300 select-none">
                 Daftar Nama
               </span>
-              <span className="text-xs font-mono font-semibold text-slate-500 dark:text-slate-400">
-                {parsedParticipantsCount} orang
+              <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                {parsedParticipantsCount} Orang
               </span>
             </div>
 
+            {/* Textarea fills full sidebar height and scrolls internally */}
             <textarea
               value={rawText}
               disabled={isSpinning || isAutoSpinning}
               onChange={(e) => handleTextChange(e.target.value)}
               placeholder="Tempel daftar nama di sini, satu nama per baris..."
-              rows={16}
-              className={`w-full p-3 rounded-xl border text-xs sm:text-sm font-sans focus:outline-hidden focus:ring-2 focus:ring-blue-500 resize-none transition-colors leading-relaxed ${
+              className={`flex-1 min-h-0 w-full resize-none p-3 rounded-xl border text-xs sm:text-sm font-sans focus:outline-hidden focus:ring-2 focus:ring-blue-500 overflow-y-auto leading-relaxed transition-colors ${
                 darkMode
                   ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-600'
                   : 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400'

@@ -137,9 +137,9 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     const width = canvas.width / dpr
     const height = canvas.height / dpr
     // Slightly offset center to balance the right-side pointer and achieve visual center symmetry
-    const cx = (width - 10) / 2
+    const cx = (width - 12) / 2
     const cy = height / 2
-    const radius = Math.min(cx, cy) - 28
+    const radius = Math.min(cx, cy) - 20
 
     ctx.clearRect(0, 0, width, height)
 
@@ -375,7 +375,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
 
       const clientW = container.clientWidth || 360
       const clientH = container.clientHeight > 100 ? container.clientHeight : clientW
-      const size = Math.max(280, Math.min(clientW, clientH, 540))
+      const size = Math.max(280, Math.min(clientW, clientH, 600))
       const dpr = window.devicePixelRatio || 1
 
       const targetW = size * dpr
@@ -604,7 +604,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
   return (
     <div
       ref={containerRef}
-      className="relative flex flex-col items-center justify-center w-full max-w-[500px] aspect-square p-2 mx-auto"
+      className="relative flex flex-col items-center justify-center w-full max-w-[580px] aspect-square p-1 mx-auto"
     >
       <canvas
         ref={canvasRef}

@@ -33,6 +33,8 @@ export interface EngineSetup {
   allNames: string[]
   // Secretly promoted person (if secret mode)
   promotedPerson: string | null
+  // In secret mode: randomized group indices where priority students are placed
+  secretGroupIndices: number[]
 }
 
 /**
@@ -211,6 +213,7 @@ export function setupEngine(rawText: string, targetGroupCount: number): EngineSe
       remainingNames: shuffleArray(allNames),
       allNames,
       promotedPerson: null,
+      secretGroupIndices: [],
     }
   }
 
@@ -259,9 +262,10 @@ export function setupEngine(rawText: string, targetGroupCount: number): EngineSe
 
   // Compute capacities:
   // For standard 35 students in 6 groups:
-  // Kelompok 1: 6, Kelompok 2: 6 (Exact sum 12 for priority pool)
-  // Kelompok 3: 6, Kelompok 4: 6, Kelompok 5: 6, Kelompok 6: 5 (Exact sum 23 for remaining)
+  // Groups 1 to 5 each have capacity 6, Group 6 has capacity 5.
+  // The 12 priority students are allocated to ANY 2 groups randomly chosen among Groups 1 to 5!
   let groups: GroupResult[] = []
+  let secretGroupIndices: number[] = []
 
   if (totalCount === 35 && groupCount === 6) {
     groups = [
@@ -272,10 +276,12 @@ export function setupEngine(rawText: string, targetGroupCount: number): EngineSe
       { id: 5, name: 'Kelompok 5', capacity: 6, members: [] },
       { id: 6, name: 'Kelompok 6', capacity: 5, members: [] },
     ]
+    // Randomly pick 2 distinct groups with capacity 6 (indices 0 to 4: Kelompok 1 to 5)
+    const eligibleIndices = [0, 1, 2, 3, 4]
+    secretGroupIndices = shuffleArray(eligibleIndices).slice(0, 2).sort((a, b) => a - b)
   } else {
     // Dynamic calculation:
     // Determine how many groups are needed for priority pool
-    // Priority groups will solely hold the priorityCount people
     const numPriorityGroups = Math.max(1, Math.min(groupCount - 1, Math.round(priorityCount / (totalCount / groupCount))))
     const basePriorityCap = Math.floor(priorityCount / numPriorityGroups)
     const remPriority = priorityCount % numPriorityGroups
@@ -301,6 +307,8 @@ export function setupEngine(rawText: string, targetGroupCount: number): EngineSe
       capacity: Math.max(1, cap),
       members: [],
     }))
+
+    secretGroupIndices = Array.from({ length: numPriorityGroups }, (_, i) => i)
   }
 
   return {
@@ -312,6 +320,7 @@ export function setupEngine(rawText: string, targetGroupCount: number): EngineSe
     remainingNames,
     allNames,
     promotedPerson,
+    secretGroupIndices,
   }
 }
 

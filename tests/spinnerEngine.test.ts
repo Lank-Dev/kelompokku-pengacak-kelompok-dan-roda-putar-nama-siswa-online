@@ -72,10 +72,15 @@ describe('Minimalist Spinner Group Engine', () => {
     // Groups capacities: [6, 6, 6, 6, 6, 5]
     expect(setup.groups.map((g) => g.capacity)).toEqual([6, 6, 6, 6, 6, 5])
 
-    // Kelompok 1 + Kelompok 2 capacity = 12 (exact match for priority pool)
-    expect(setup.groups[0].capacity + setup.groups[1].capacity).toBe(12)
-    // Kelompok 3..6 capacity = 23 (exact match for remaining pool)
-    const remainingCap = setup.groups.slice(2).reduce((sum, g) => sum + g.capacity, 0)
+    // Exactly 2 randomized groups are chosen for priority pool (from groups 1 to 5)
+    expect(setup.secretGroupIndices).toHaveLength(2)
+    const [gA, gB] = setup.secretGroupIndices
+    expect(setup.groups[gA].capacity + setup.groups[gB].capacity).toBe(12)
+
+    // The other 4 groups capacity sum = 23 (exact match for remaining pool)
+    const remainingCap = setup.groups
+      .filter((_, idx) => !setup.secretGroupIndices.includes(idx))
+      .reduce((sum, g) => sum + g.capacity, 0)
     expect(remainingCap).toBe(23)
   })
 
