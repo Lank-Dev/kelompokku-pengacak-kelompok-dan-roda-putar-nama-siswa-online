@@ -3,7 +3,7 @@ import { getSliceTextStyles } from '../utils/color'
 import { getSliceUnderPointer } from '../utils/wheelMath'
 
 export interface WheelHandle {
-  spin: () => void
+  spin: (forcedWinner?: string) => void
   reset?: () => void
 }
 
@@ -13,10 +13,11 @@ export interface WheelProps {
   spinDuration: number // seconds
   isSpinning: boolean
   darkMode: boolean
+  emptyLabel?: string
+  onSelectWinner?: (currentItems: string[]) => string
   onSpinStart: () => void
   onSpinEnd: (winner: string) => void
 }
-
 
 /**
  * Auto-fits slice text with zero truncation, zero overlapping, and pristine legibility.
@@ -37,25 +38,28 @@ function renderSliceText(
   const safeText = text || ''
 
   // 1. Initial base font size suited for the number of items
-  let initialFontSize = 16
-  if (total <= 4) initialFontSize = 18
-  else if (total <= 8) initialFontSize = 15
-  else if (total <= 14) initialFontSize = 13
-  else if (total <= 24) initialFontSize = 11
-  else if (total <= 40) initialFontSize = 9.0
-  else if (total <= 60) initialFontSize = 8.0
-  else initialFontSize = 7.0
+  let baseFontSize = 16
+  if (total <= 2) baseFontSize = 22
+  else if (total <= 4) baseFontSize = 18
+  else if (total <= 8) baseFontSize = 15
+  else if (total <= 12) baseFontSize = 13.5
+  else if (total <= 18) baseFontSize = 12
+  else if (total <= 25) baseFontSize = 11
+  else if (total <= 35) baseFontSize = 10
+  else if (total <= 50) baseFontSize = 9
+  else baseFontSize = 8
 
-  // 2. Strict vertical clamp: font height must not exceed slice width near innerTextR
-  const arcAtInnerSafe = (innerTextR + 6) * sliceAngle
-  const maxSafeFontSize = Math.max(6.5, arcAtInnerSafe * 0.90)
-  let fontSize = Math.min(initialFontSize, maxSafeFontSize)
+  // 2. Strict vertical clamp: font height must not exceed slice width near mid radius
+  const midR = (outerTextR + innerTextR) / 2
+  const arcAtMid = midR * sliceAngle
+  const maxSafeHeight = Math.max(6.5, arcAtMid * 0.72)
+  let fontSize = Math.min(baseFontSize, maxSafeHeight)
 
   ctx.font = `bold ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
   let textWidth = ctx.measureText(safeText).width
 
   // 3. Step font size down if text is significantly longer than space
-  while (fontSize > 7.0 && textWidth > availableRadialLength * 1.3) {
+  while (fontSize > 7.0 && textWidth > availableRadialLength * 1.25) {
     fontSize -= 0.5
     ctx.font = `bold ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
     textWidth = ctx.measureText(safeText).width
@@ -63,7 +67,7 @@ function renderSliceText(
 
   // 4. Horizontal condensation factor: ensures long names (25+ chars) fit without ANY cut-off
   const scaleX = textWidth > availableRadialLength
-    ? Math.max(0.68, availableRadialLength / textWidth)
+    ? Math.max(0.65, availableRadialLength / textWidth)
     : 1.0
 
   ctx.save()
@@ -74,7 +78,7 @@ function renderSliceText(
   const drawX = outerTextR / scaleX
 
   // Pass 1: Crisp Outline stroke for 100% legibility against ANY slice color
-  const outlineWidth = Math.min(2.0, Math.max(1.0, fontSize * 0.18))
+  const outlineWidth = Math.min(2.0, Math.max(1.0, fontSize * 0.16))
   ctx.lineWidth = outlineWidth
   ctx.strokeStyle = strokeColor
   ctx.lineJoin = 'round'
@@ -95,6 +99,8 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     spinDuration,
     isSpinning,
     darkMode,
+    emptyLabel = 'Masukkan Nama',
+    onSelectWinner,
     onSpinStart,
     onSpinEnd,
   },
@@ -162,7 +168,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
       ctx.font = 'bold 15px system-ui, sans-serif'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText('Selesai', cx, cy)
+      ctx.fillText(emptyLabel || 'Masukkan Nama', cx, cy)
       return
     }
 
@@ -352,7 +358,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     ctx.strokeStyle = '#ffffff'
     ctx.stroke()
     ctx.restore()
-  }, [items, colors, isSpinning, hoverCenter, darkMode])
+  }, [items, colors, isSpinning, hoverCenter, darkMode, emptyLabel])
 
   // Stable reference to drawWheel so resize listeners do not rebind or wipe canvas
   const drawWheelRef = useRef(drawWheel)
@@ -419,7 +425,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
   )
 
   // Spin trigger with atomic internal lock and snapshot isolation
-  const spin = useCallback(() => {
+  const spin = useCallback((forcedWinner?: string) => {
     // 1. Strict lock: Never allow duplicate or overlapping spins
     if (isSpinningInternalRef.current || isSpinning || items.length === 0) {
       return
@@ -440,8 +446,25 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     spinningColorsRef.current = spinColors
 
     // 3. Predetermine the winning index and winner name
-    const winningIndex = Math.floor(Math.random() * total)
-    const winner = spinItems[winningIndex] || spinItems[0] || 'Pemenang'
+    let winner = ''
+    let winningIndex = -1
+
+    if (typeof forcedWinner === 'string' && spinItems.includes(forcedWinner)) {
+      winner = forcedWinner
+      winningIndex = spinItems.indexOf(forcedWinner)
+    } else if (onSelectWinner) {
+      const candidate = onSelectWinner(spinItems)
+      if (typeof candidate === 'string' && spinItems.includes(candidate)) {
+        winner = candidate
+        winningIndex = spinItems.indexOf(candidate)
+      }
+    }
+
+    if (winningIndex === -1) {
+      winningIndex = Math.floor(Math.random() * total)
+      winner = spinItems[winningIndex] || spinItems[0] || 'Pemenang'
+    }
+
     targetWinnerRef.current = winner
 
     // 4. Exact target angle calculation
@@ -522,6 +545,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     items,
     colors,
     spinDuration,
+    onSelectWinner,
     onSpinStart,
     onSpinEnd,
     checkTickAndFlapper,
@@ -541,7 +565,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
   useImperativeHandle(
     ref,
     () => ({
-      spin,
+      spin: (forcedWinner?: string) => spin(forcedWinner),
       reset,
     }),
     [spin, reset]

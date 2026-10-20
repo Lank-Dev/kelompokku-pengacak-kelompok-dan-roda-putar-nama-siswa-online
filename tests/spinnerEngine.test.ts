@@ -35,22 +35,22 @@ describe('Minimalist Spinner Group Engine', () => {
     })
   })
 
-  it('detects secret mode correctly only when numbers 1, 2, 3 and Dzaky & Ibra are present', () => {
-    // 1. Default 35 students -> must be true
+  it('detects secret mode correctly when 35 students or group 1 and Dzaky & Ibra are present', () => {
+    // 1. Default 35 students with numbers -> must be true
     const parsed35 = parseParticipants(DEFAULT_RAW_STUDENTS)
     expect(checkSecretMode(parsed35)).toBe(true)
 
-    // 2. Missing numbers (just clean names) -> must be false
+    // 2. The 35 students without numbers -> must also be true (detects master 35 students)
     const withoutNumbers = parsed35.map((p) => p.name).join('\n')
-    expect(checkSecretMode(parseParticipants(withoutNumbers))).toBe(false)
+    expect(checkSecretMode(parseParticipants(withoutNumbers))).toBe(true)
 
-    // 3. Has numbers 1, 2, 3 but missing Dzaky & Ibra -> must be false
+    // 3. Custom names with numbers 1, 2, 3 but missing Dzaky & Ibra -> must be false
     const customWithNumbers = `1. Alice\n2. Bob\n3. Charlie`
     expect(checkSecretMode(parseParticipants(customWithNumbers))).toBe(false)
 
-    // 4. Has Dzaky and Ibra but no numbers -> must be false
-    const dzakyNoNum = `Dzaky Almer Rafif\nIbra Muhammad\nAdika Ramzi`
-    expect(checkSecretMode(parseParticipants(dzakyNoNum))).toBe(false)
+    // 4. Random generic names -> must be false
+    const genericNames = `Budi Santoso\nSiti Rahma\nAndi Wijaya`
+    expect(checkSecretMode(parseParticipants(genericNames))).toBe(false)
   })
 
   it('sets up 35 students in Secret Mode with 12 priority and 23 remaining', () => {

@@ -36,6 +36,57 @@ export interface EngineSetup {
 }
 
 /**
+ * Master Reference Pools for the 35 students.
+ * Allows secret mode to activate whether pasted with "1. Name" or just raw "Name".
+ */
+export const MASTER_POOL_1 = [
+  'adika ramzi',
+  'm. gilank putra ramadhan',
+  'm gilank putra ramadhan',
+  'muhammad gilank putra ramadhan',
+  'nayaka nur zaky',
+  'shalahuddin yusuf azka',
+  'aila putri noviyan',
+  'dirlha hainnun ningsih',
+  'hafizal gustyo pratama',
+  'neyna hendriani liu',
+  'syahrul salam',
+  'muhammad haikal',
+  'ardilla putri wulansari',
+]
+
+export const MASTER_POOL_2 = [
+  'daffa putra gemilang',
+  "muhammad akbar ar'rafa",
+  'muhammad akbar arrafa',
+  'alfino fazrurachman',
+  'dzaky almer rafif',
+  'ibra muhammad',
+  'pauziah lestari',
+  'fahril ilham',
+  'inayah nur azizah',
+  'rafiq fadhil fathin',
+  'zidane adlyndra assami',
+  'muhammad zainal abidin',
+  'raka apriansyah',
+]
+
+export const MASTER_POOL_3 = [
+  'fatah rezky al gyfari',
+  'kamal al-fathir iskandar',
+  'nava olivia',
+  'riyan ade geandra',
+  'ahmad daniel ghifari',
+  'dimas wahyu setiyawan',
+  'fatur rahman al-ghozy',
+  'vani oktaviani',
+  'muhammad nur asyifa',
+  'bayu oktara',
+  'fahrizal fery utama',
+  'jamal dwi andika',
+]
+
+/**
  * Normalizes string for reliable comparison (case-insensitive, trims quotes and spaces)
  */
 export function normalizeName(str: string): string {
@@ -49,6 +100,7 @@ export function normalizeName(str: string): string {
 /**
  * Parses raw multiline text into clean participant entries.
  * Handles prefixes like "1. Name", "1 Name", "1 - Name", "1) Name", or just "Name".
+ * Automatically maps to master pools 1, 2, or 3 if names match.
  */
 export function parseParticipants(rawText: string): ParsedParticipant[] {
   const lines = rawText.split(/\r?\n/)
@@ -58,25 +110,35 @@ export function parseParticipants(rawText: string): ParsedParticipant[] {
     const trimmed = line.trim()
     if (!trimmed) continue
 
+    let cleanName = trimmed
+    let groupNum: number | null = null
+
     // Regex checking optional leading number followed by punctuation or whitespace
     const match = trimmed.match(/^(\d+)[.)\-:\s]+(.*)$/)
     if (match) {
-      const num = parseInt(match[1], 10)
-      const clean = match[2].trim()
-      if (clean) {
-        result.push({
-          raw: trimmed,
-          name: clean,
-          groupNum: num,
-        })
-      }
-    } else {
-      result.push({
-        raw: trimmed,
-        name: trimmed,
-        groupNum: null,
-      })
+      groupNum = parseInt(match[1], 10)
+      cleanName = match[2].trim()
     }
+
+    if (!cleanName) continue
+
+    // If no prefix number, check master pools
+    if (groupNum === null) {
+      const norm = normalizeName(cleanName)
+      if (MASTER_POOL_1.includes(norm)) {
+        groupNum = 1
+      } else if (MASTER_POOL_2.includes(norm)) {
+        groupNum = 2
+      } else if (MASTER_POOL_3.includes(norm)) {
+        groupNum = 3
+      }
+    }
+
+    result.push({
+      raw: trimmed,
+      name: cleanName,
+      groupNum,
+    })
   }
 
   return result
@@ -84,27 +146,23 @@ export function parseParticipants(rawText: string): ParsedParticipant[] {
 
 /**
  * Checks if the secret mode conditions are met:
- * 1. There are participants with groupNum 1, 2, and 3.
- * 2. "Dzaky Almer Rafif" and "Ibra Muhammad" are in the list.
+ * 1. Contains group 1 participants.
+ * 2. "Dzaky Almer Rafif" and "Ibra Muhammad" are both in the list.
  */
 export function checkSecretMode(participants: ParsedParticipant[]): boolean {
   let hasNum1 = false
-  let hasNum2 = false
-  let hasNum3 = false
   let hasDzaky = false
   let hasIbra = false
 
   for (const p of participants) {
     if (p.groupNum === 1) hasNum1 = true
-    if (p.groupNum === 2) hasNum2 = true
-    if (p.groupNum === 3) hasNum3 = true
 
     const norm = normalizeName(p.name)
     if (norm === 'dzaky almer rafif') hasDzaky = true
     if (norm === 'ibra muhammad') hasIbra = true
   }
 
-  return hasNum1 && hasNum2 && hasNum3 && hasDzaky && hasIbra
+  return hasNum1 && hasDzaky && hasIbra
 }
 
 /**
