@@ -2,25 +2,21 @@ import React, { useState, useEffect } from 'react'
 import {
   Maximize2,
   Minimize2,
-  Sun,
-  Moon,
   Users,
   Compass,
 } from 'lucide-react'
 
 interface HeaderProps {
-  darkMode: boolean
+  darkMode?: boolean
   activeMode: 'group-divider' | 'custom-wheel'
   onSelectMode: (mode: 'group-divider' | 'custom-wheel') => void
-  onToggleDarkMode: () => void
-  onOpenSettings: () => void
+  onToggleDarkMode?: () => void
+  onOpenSettings?: () => void
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  darkMode,
   activeMode,
   onSelectMode,
-  onToggleDarkMode,
 }) => {
   const [isFullscreen, setIsFullscreen] = useState(false)
 
@@ -88,20 +84,11 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right Toolbar */}
         <div className="flex items-center gap-2">
-          {/* Dark / Light Mode Toggle */}
-          <button
-            onClick={onToggleDarkMode}
-            className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
-            title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          >
-            {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
-          </button>
-
           {/* Fullscreen Toggle */}
           <button
             onClick={toggleFullscreen}
-            className="hidden sm:flex p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
-            title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+            className="flex p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer border border-transparent hover:border-slate-200"
+            title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>

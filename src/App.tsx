@@ -39,7 +39,7 @@ export function App() {
   const [settings, setSettings] = useState<WheelSettings>(() => {
     try {
       const saved = localStorage.getItem('kocoknama_settings')
-      if (saved) return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) }
+      if (saved) return { ...DEFAULT_SETTINGS, ...JSON.parse(saved), darkMode: false }
     } catch {
       // ignore
     }
@@ -62,14 +62,10 @@ export function App() {
   const [sidebarTab, setSidebarTab] = useState<'entries' | 'results'>('entries')
   const [appMode, setAppMode] = useState<'group-divider' | 'custom-wheel'>('group-divider')
 
-  // Toggle dark class on root document
+  // Enforce pure light mode (strip any dark class from document)
   useEffect(() => {
-    if (settings.darkMode) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
-  }, [settings.darkMode])
+    document.documentElement.classList.remove('dark')
+  }, [])
 
   // Save changes to localStorage
   useEffect(() => {
@@ -215,39 +211,25 @@ export function App() {
   }, [isSpinning, items.length, currentWinner, isSettingsOpen])
 
   return (
-    <div
-      className={`flex flex-col min-h-screen transition-colors ${
-        settings.darkMode
-          ? 'bg-slate-950 text-slate-100'
-          : 'bg-[#edf0f5] text-slate-900'
-      }`}
-    >
+    <div className="flex flex-col min-h-screen bg-[#edf0f5] text-slate-900">
       {/* Top Header Navigation */}
       <Header
-        darkMode={settings.darkMode}
         activeMode={appMode}
         onSelectMode={setAppMode}
-        onToggleDarkMode={() =>
-          setSettings((prev) => ({ ...prev, darkMode: !prev.darkMode }))
-        }
         onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
       {/* Conditional Stage: Group Divider (35 Students) vs Custom Free Wheel */}
       {appMode === 'group-divider' ? (
         <main className="flex-1 w-full">
-          <GroupDivider darkMode={settings.darkMode} />
+          <GroupDivider darkMode={false} />
         </main>
       ) : (
         /* Main Custom Wheel Workspace Layout */
         <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
           {/* Left Stage: Wheel Area */}
           <section
-            className={`lg:col-span-7 xl:col-span-8 flex flex-col items-center justify-center rounded-2xl p-4 sm:p-6 border shadow-sm relative overflow-hidden transition-colors min-h-[460px] lg:min-h-[600px] ${
-              settings.darkMode
-                ? 'bg-slate-900 border-slate-700'
-                : 'bg-white border-slate-300'
-            }`}
+            className="lg:col-span-7 xl:col-span-8 flex flex-col items-center justify-center rounded-2xl p-4 sm:p-6 border border-slate-300 bg-white shadow-sm relative overflow-hidden transition-colors min-h-[460px] lg:min-h-[600px]"
           >
             {/* Canvas Wheel Component */}
             <Wheel
@@ -255,14 +237,14 @@ export function App() {
               colors={currentTheme.colors}
               spinDuration={settings.spinDuration}
               isSpinning={isSpinning}
-              darkMode={settings.darkMode}
+              darkMode={false}
               onSpinStart={handleSpinStart}
               onSpinEnd={handleSpinEnd}
             />
 
             {/* Quick Instruction with High-Contrast Text */}
-            <div className="mt-3.5 flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 font-bold">
-              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 bg-slate-200 dark:bg-slate-800 rounded-md border border-slate-400 dark:border-slate-600 font-mono text-[11px] font-extrabold shadow-2xs">
+            <div className="mt-3.5 flex items-center gap-2 text-xs text-slate-700 font-bold">
+              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 bg-slate-200 rounded-md border border-slate-400 font-mono text-[11px] font-extrabold shadow-2xs">
                 SPASI
               </span>
               <span className="hidden sm:inline">atau klik roda untuk memutar</span>
@@ -271,21 +253,21 @@ export function App() {
 
             {/* Persistent Winner Banner Card (Ultra High Contrast in White Mode) */}
             {history.length > 0 && !isSpinning && (
-              <div className="mt-4 w-full max-w-lg p-3.5 sm:p-4 rounded-2xl border-2 border-amber-400 bg-amber-50 dark:bg-amber-950/60 dark:border-amber-500 shadow-sm flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-2 duration-150">
+              <div className="mt-4 w-full max-w-lg p-3.5 sm:p-4 rounded-2xl border-2 border-amber-400 bg-amber-50 shadow-sm flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-2 duration-150">
                 <div className="flex items-center gap-3 truncate">
                   <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 shadow-xs">
                     <Trophy className="w-5 h-5 font-black" />
                   </div>
                   <div className="truncate">
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-300 bg-amber-200/80 dark:bg-amber-900/60 px-2 py-0.5 rounded-md">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded-md">
                         Putaran #{history[0].round} • Pemenang Terakhir
                       </span>
-                      <span className="text-[11px] text-slate-600 dark:text-slate-400 font-semibold">
+                      <span className="text-[11px] text-slate-600 font-semibold">
                         {history[0].timestamp}
                       </span>
                     </div>
-                    <div className="text-xl sm:text-2xl font-black text-slate-950 dark:text-white truncate mt-0.5">
+                    <div className="text-xl sm:text-2xl font-black text-slate-950 truncate mt-0.5">
                       {history[0].name}
                     </div>
                   </div>
@@ -294,7 +276,7 @@ export function App() {
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => setCurrentWinner(history[0].name)}
-                    className="px-3 py-1.5 text-xs font-bold rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-900 dark:text-white transition-colors cursor-pointer shadow-xs"
+                    className="px-3 py-1.5 text-xs font-bold rounded-lg border-2 border-slate-300 bg-white hover:bg-slate-100 text-slate-900 transition-colors cursor-pointer shadow-xs"
                     title="Lihat modal perayaan pemenang"
                   >
                     Lihat
@@ -320,7 +302,7 @@ export function App() {
               history={history}
               activeTab={sidebarTab}
               disabled={isSpinning}
-              darkMode={settings.darkMode}
+              darkMode={false}
               onTabChange={setSidebarTab}
               onChangeItems={setItems}
               onShuffle={handleShuffle}
@@ -342,7 +324,7 @@ export function App() {
           winningMessage={settings.winningMessage}
           confettiEnabled={settings.confettiEnabled}
           showRemoveButton={settings.showRemoveButton}
-          darkMode={settings.darkMode}
+          darkMode={false}
           onClose={() => setCurrentWinner(null)}
           onRemoveWinner={handleRemoveWinner}
           onSpinAgain={handleSpinAgain}
@@ -352,8 +334,8 @@ export function App() {
       <SettingsModal
         isOpen={isSettingsOpen}
         settings={settings}
-        darkMode={settings.darkMode}
-        onUpdateSettings={(updated) => setSettings((prev) => ({ ...prev, ...updated }))}
+        darkMode={false}
+        onUpdateSettings={(updated) => setSettings((prev) => ({ ...prev, ...updated, darkMode: false }))}
         onClose={() => setIsSettingsOpen(false)}
       />
     </div>
