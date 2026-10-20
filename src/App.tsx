@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Trophy } from 'lucide-react'
 import { Header } from './components/Header'
-import { Wheel } from './components/Wheel'
+import { Wheel, type WheelHandle } from './components/Wheel'
 import { SidebarTabs } from './components/SidebarTabs'
 import { WinnerModal } from './components/WinnerModal'
 import { SettingsModal } from './components/SettingsModal'
@@ -61,6 +61,7 @@ export function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false)
   const [sidebarTab, setSidebarTab] = useState<'entries' | 'results'>('entries')
   const [appMode, setAppMode] = useState<'group-divider' | 'custom-wheel'>('group-divider')
+  const customWheelRef = useRef<WheelHandle | null>(null)
 
   // Enforce pure light mode (strip any dark class from document)
   useEffect(() => {
@@ -142,9 +143,8 @@ export function App() {
   const handleSpinAgain = useCallback(() => {
     setCurrentWinner(null)
     setTimeout(() => {
-      const canvas = document.querySelector('canvas')
-      if (canvas) {
-        canvas.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      if (customWheelRef.current) {
+        customWheelRef.current.spin()
       }
     }, 150)
   }, [])
@@ -184,19 +184,28 @@ export function App() {
     setHistory((prev) => prev.filter((item) => item.id !== id))
   }, [])
 
-  // Global Keyboard shortcuts: Spacebar / Enter to spin, Esc to close
+  // Global Keyboard shortcuts: Spacebar to spin, Esc to close (Only in Custom Wheel mode)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase()
-      if (targetTag === 'textarea' || targetTag === 'input') return
+      if (appMode !== 'custom-wheel') return
+      const activeEl = document.activeElement as HTMLElement | null
+      const targetTag = activeEl?.tagName?.toLowerCase()
+      if (
+        targetTag === 'textarea' ||
+        targetTag === 'input' ||
+        targetTag === 'select' ||
+        activeEl?.isContentEditable
+      ) {
+        return
+      }
 
       if (e.code === 'Space' || e.key === ' ') {
+        // If user is focused on a button, do not hijack space
+        if (targetTag === 'button') return
+
         e.preventDefault()
         if (!isSpinning && items.length > 0 && !currentWinner && !isSettingsOpen) {
-          const canvas = document.querySelector('canvas')
-          if (canvas) {
-            canvas.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-          }
+          customWheelRef.current?.spin()
         }
       }
 
@@ -208,7 +217,7 @@ export function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isSpinning, items.length, currentWinner, isSettingsOpen])
+  }, [appMode, isSpinning, items.length, currentWinner, isSettingsOpen])
 
   return (
     <div className="flex flex-col min-h-screen bg-[#edf0f5] text-slate-900">
@@ -233,6 +242,7 @@ export function App() {
           >
             {/* Canvas Wheel Component */}
             <Wheel
+              ref={customWheelRef}
               items={items}
               colors={currentTheme.colors}
               spinDuration={settings.spinDuration}

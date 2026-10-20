@@ -89,15 +89,156 @@ export const GROUP_PALETTE: GroupColorTheme[] = [
 ]
 
 /**
- * Default 6 groups strictly following the 35 participants rules:
- * Groups A to E: 6 members each
- * Group F: 5 members
+ * Normalize names for fuzzy or standard string matching (handle curved quotes, double spaces)
  */
-export const INITIAL_RULE_GROUPS: GroupData[] = [
-  { id: 'A', name: 'Kelompok A', capacity: 6, color: GROUP_PALETTE[0].color, members: [] },
-  { id: 'B', name: 'Kelompok B', capacity: 6, color: GROUP_PALETTE[1].color, members: [] },
-  { id: 'C', name: 'Kelompok C', capacity: 6, color: GROUP_PALETTE[2].color, members: [] },
-  { id: 'D', name: 'Kelompok D', capacity: 6, color: GROUP_PALETTE[3].color, members: [] },
-  { id: 'E', name: 'Kelompok E', capacity: 6, color: GROUP_PALETTE[4].color, members: [] },
-  { id: 'F', name: 'Kelompok F', capacity: 5, color: GROUP_PALETTE[5].color, members: [] },
-]
+export function normalizeName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[’'`]/g, "'")
+    .replace(/[\s\t\n]+/g, ' ')
+}
+
+export interface SmartRulesAnalysis {
+  isSmart: boolean
+  pool1Members: string[]
+  pool2Members: string[]
+  pool3Members: string[]
+  promoCandidates: string[]
+  customMembers: string[]
+  totalRecognized: number
+  reason: string
+}
+
+/**
+ * Detects whether the given list contains the special master dataset (Nomor 1, 2, 3 + Promotion Candidates).
+ * - If yes -> Strict Smart Priority Rules are triggered (3 Stages: Promotion -> AB -> CDEF).
+ * - If no (completely custom names) -> Regular fair division applies directly to the wheel.
+ */
+export function detectSmartRules(names: string[]): SmartRulesAnalysis {
+  const normPool1 = new Map(POOL_1.map((p) => [normalizeName(p), p]))
+  const normPool2 = new Map(POOL_2.map((p) => [normalizeName(p), p]))
+  const normPool3 = new Map(POOL_3.map((p) => [normalizeName(p), p]))
+  const normPromo = new Map(PROMOTION_CANDIDATES.map((p) => [normalizeName(p), p]))
+
+  const pool1Members: string[] = []
+  const pool2Members: string[] = []
+  const pool3Members: string[] = []
+  const promoCandidates: string[] = []
+  const customMembers: string[] = []
+
+  names.forEach((raw) => {
+    const trimmed = raw.trim()
+    if (!trimmed) return
+    const key = normalizeName(trimmed)
+
+    if (normPromo.has(key)) {
+      promoCandidates.push(trimmed)
+    } else if (normPool1.has(key)) {
+      pool1Members.push(trimmed)
+    } else if (normPool2.has(key)) {
+      pool2Members.push(trimmed)
+    } else if (normPool3.has(key)) {
+      pool3Members.push(trimmed)
+    } else {
+      customMembers.push(trimmed)
+    }
+  })
+
+  const totalRecognized =
+    pool1Members.length + pool2Members.length + pool3Members.length + promoCandidates.length
+
+  // Smart Rules activate when the list contains the promotion candidates (Dzaky & Ibra)
+  // and significant members of Pool 1 and Pool 2/3 (or the majority of the 35 students).
+  const hasBothCandidates = promoCandidates.length >= 2
+  const hasSubstantialPool1 = pool1Members.length >= 4
+  const hasSubstantialPool2Or3 = pool2Members.length + pool3Members.length >= 4
+
+  const isSmart =
+    (hasBothCandidates && hasSubstantialPool1 && hasSubstantialPool2Or3) ||
+    totalRecognized >= 15
+
+  let reason = ''
+  if (isSmart) {
+    reason = `Terdeteksi ${pool1Members.length} No.1, ${pool2Members.length} No.2, ${pool3Members.length} No.3, dan ${promoCandidates.length} kandidat promosi.`
+  } else {
+    reason = 'Daftar nama tidak mengandung pola 35 siswa (No. 1, 2, 3). Roda membagi kelompok secara acak biasa.'
+  }
+
+  return {
+    isSmart,
+    pool1Members,
+    pool2Members,
+    pool3Members,
+    promoCandidates,
+    customMembers,
+    totalRecognized,
+    reason,
+  }
+}
+
+/**
+ * Creates balanced initial groups for either Smart Rules or Regular Random Mode.
+ * - In Smart Rules: Group A (6), Group B (6), and C, D, E, F distribute the remaining count (e.g. 23 -> 6, 6, 6, 5).
+ * - In Regular Mode: Distributes totalCount evenly across groupCount groups.
+ */
+export function buildInitialGroups(
+  totalCount = 35,
+  isSmartRulesOrGroupCount: boolean | number = true,
+  groupCount = 6
+): GroupData[] {
+  const safeTotal = Math.max(1, totalCount)
+  const isSmartRules = typeof isSmartRulesOrGroupCount === 'boolean'
+    ? isSmartRulesOrGroupCount
+    : false
+  const effectiveGroupCount = typeof isSmartRulesOrGroupCount === 'number'
+    ? isSmartRulesOrGroupCount
+    : groupCount
+
+  if (isSmartRules) {
+    // Stage 1 & 2: Group A and B have capacity 6 each (total 12)
+    const capA = 6
+    const capB = 6
+
+    // Stage 3: Groups C, D, E, F distribute the remainder
+    const remaining = Math.max(0, safeTotal - 12)
+    const baseCDEF = Math.floor(remaining / 4)
+    const remCDEF = remaining % 4
+
+    const capC = baseCDEF + (remCDEF > 0 ? 1 : 0)
+    const capD = baseCDEF + (remCDEF > 1 ? 1 : 0)
+    const capE = baseCDEF + (remCDEF > 2 ? 1 : 0)
+    const capF = baseCDEF
+
+    const capacities = [capA, capB, capC, capD, capE, capF]
+
+    return ['A', 'B', 'C', 'D', 'E', 'F'].map((id, index) => ({
+      id,
+      name: `Kelompok ${id}`,
+      capacity: Math.max(1, capacities[index]),
+      color: GROUP_PALETTE[index % GROUP_PALETTE.length].color,
+      members: [],
+    }))
+  }
+
+  // Regular Random Mode: Distribute evenly across effectiveGroupCount groups
+  const count = Math.max(1, Math.min(10, effectiveGroupCount))
+  const baseCapacity = Math.floor(safeTotal / count)
+  const remainder = safeTotal % count
+
+  return Array.from({ length: count }, (_, i) => {
+    const capacity = i < remainder ? baseCapacity + 1 : baseCapacity
+    const label = String.fromCharCode(65 + i) // 'A', 'B', 'C', ...
+    const palette = GROUP_PALETTE[i % GROUP_PALETTE.length]
+
+    return {
+      id: label,
+      name: `Kelompok ${label}`,
+      capacity: Math.max(1, capacity),
+      color: palette.color,
+      members: [],
+    }
+  })
+}
+
+export const INITIAL_RULE_GROUPS: GroupData[] = buildInitialGroups(35, true)

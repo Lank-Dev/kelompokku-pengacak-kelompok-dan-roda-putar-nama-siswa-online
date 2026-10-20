@@ -3,6 +3,7 @@ import { getSliceTextStyles } from '../utils/color'
 
 export interface WheelHandle {
   spin: () => void
+  reset?: () => void
 }
 
 export interface WheelProps {
@@ -13,6 +14,24 @@ export interface WheelProps {
   darkMode: boolean
   onSpinStart: () => void
   onSpinEnd: (winner: string) => void
+}
+
+/**
+ * Bulletproof pointer slice calculation.
+ * Mathematically guaranteed to return a valid slice index in [0, total - 1].
+ * Zero NaN, zero undefined, zero division-by-zero crashes.
+ */
+function getSliceUnderPointer(rot: number, total: number): number {
+  if (!total || total <= 0 || !Number.isFinite(total)) return 0
+  if (!Number.isFinite(rot)) return 0
+
+  const twoPi = 2 * Math.PI
+  const sliceAngle = twoPi / total
+  const normalizedAngle = ((-rot % twoPi) + twoPi) % twoPi
+  const index = Math.floor(normalizedAngle / sliceAngle)
+
+  if (!Number.isFinite(index) || isNaN(index)) return 0
+  return ((index % total) + total) % total
 }
 
 /**
@@ -30,6 +49,9 @@ function renderSliceText(
   textColor: string,
   strokeColor: string
 ) {
+  // Safe fallback for null or empty strings
+  const safeText = text || ''
+
   // 1. Initial base font size suited for the number of items
   let initialFontSize = 16
   if (total <= 4) initialFontSize = 18
@@ -41,19 +63,18 @@ function renderSliceText(
   else initialFontSize = 7.0
 
   // 2. Strict vertical clamp: font height must not exceed slice width near innerTextR
-  // to mathematically guarantee ZERO overlap with neighboring slices.
   const arcAtInnerSafe = (innerTextR + 6) * sliceAngle
   const maxSafeFontSize = Math.max(6.5, arcAtInnerSafe * 0.90)
   let fontSize = Math.min(initialFontSize, maxSafeFontSize)
 
   ctx.font = `bold ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
-  let textWidth = ctx.measureText(text).width
+  let textWidth = ctx.measureText(safeText).width
 
   // 3. Step font size down if text is significantly longer than space
   while (fontSize > 7.0 && textWidth > availableRadialLength * 1.3) {
     fontSize -= 0.5
     ctx.font = `bold ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
-    textWidth = ctx.measureText(text).width
+    textWidth = ctx.measureText(safeText).width
   }
 
   // 4. Horizontal condensation factor: ensures long names (25+ chars) fit without ANY cut-off
@@ -74,11 +95,11 @@ function renderSliceText(
   ctx.strokeStyle = strokeColor
   ctx.lineJoin = 'round'
   ctx.miterLimit = 2
-  ctx.strokeText(text, drawX, 0)
+  ctx.strokeText(safeText, drawX, 0)
 
   // Pass 2: Foreground Text
   ctx.fillStyle = textColor
-  ctx.fillText(text, drawX, 0)
+  ctx.fillText(safeText, drawX, 0)
 
   ctx.restore()
 }
@@ -97,40 +118,41 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
 ) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const livePointerTextRef = useRef<HTMLSpanElement | null>(null)
 
-  // Wheel state
+  // Wheel animation & physics state
   const rotationRef = useRef<number>(0)
   const animFrameRef = useRef<number | null>(null)
   const lastSliceIndexRef = useRef<number>(-1)
-
-  // Physical pointer / flapper deflection angle (in radians)
   const flapperDeflectionRef = useRef<number>(0)
+
+  // Concurrency & snapshot locks: ensures bulletproof mid-spin stability
+  const isSpinningInternalRef = useRef<boolean>(false)
+  const spinningItemsRef = useRef<string[]>([])
+  const spinningColorsRef = useRef<string[]>([])
+  const targetWinnerRef = useRef<string>('')
 
   const [hoverCenter, setHoverCenter] = useState(false)
   const [highlightedName, setHighlightedName] = useState<string>('')
 
-  // Calculate current slice under pointer (at 3 o'clock / angle 0)
-  const getSliceUnderPointer = useCallback(
-    (rot: number, total: number): number => {
-      if (total === 0) return 0
-      const sliceAngle = (2 * Math.PI) / total
-      const normalizedAngle = ((-rot % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
-      return Math.floor(normalizedAngle / sliceAngle) % total
-    },
-    []
-  )
-
-  // Update highlighted name initially or when items change
+  // Sync highlighted slice name when items change or initially (only when wheel is idle)
   useEffect(() => {
-    if (items.length > 0) {
+    if (items.length > 0 && !isSpinningInternalRef.current) {
       const idx = getSliceUnderPointer(rotationRef.current, items.length)
-      setHighlightedName(items[idx] || '')
-    } else {
+      const name = items[idx] || ''
+      setHighlightedName(name)
+      if (livePointerTextRef.current) {
+        livePointerTextRef.current.textContent = name
+      }
+    } else if (items.length === 0) {
       setHighlightedName('')
+      if (livePointerTextRef.current) {
+        livePointerTextRef.current.textContent = ''
+      }
     }
-  }, [items, getSliceUnderPointer])
+  }, [items])
 
-  // Draw wheel function with guaranteed high-contrast rendering
+  // Draw wheel function with guaranteed high-contrast rendering and DPR transform stability
   const drawWheel = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -138,17 +160,30 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     if (!ctx) return
 
     const dpr = window.devicePixelRatio || 1
+    // Reset transform matrix to exact DPR scale to prevent scaling drift or accumulation
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
     const width = canvas.width / dpr
     const height = canvas.height / dpr
     // Slightly offset center to balance the right-side pointer and achieve visual center symmetry
     const cx = (width - 10) / 2
     const cy = height / 2
-    // Generous radius maximizing slice length while reserving safe margin for rim and pointer
     const radius = Math.min(cx, cy) - 28
 
     ctx.clearRect(0, 0, width, height)
 
-    if (items.length === 0) {
+    // Snapshot fallback if spinning, otherwise current props
+    const isSpinningNow = isSpinningInternalRef.current || isSpinning
+    const currentItems = isSpinningInternalRef.current && spinningItemsRef.current.length > 0
+      ? spinningItemsRef.current
+      : items
+    const currentColors = isSpinningInternalRef.current && spinningColorsRef.current.length > 0
+      ? spinningColorsRef.current
+      : colors && colors.length > 0
+      ? colors
+      : ['#2563eb', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6']
+
+    if (currentItems.length === 0) {
       // Empty state
       ctx.beginPath()
       ctx.arc(cx, cy, radius, 0, 2 * Math.PI)
@@ -166,10 +201,9 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
       return
     }
 
-    const total = items.length
+    const total = currentItems.length
     const sliceAngle = (2 * Math.PI) / total
     const rot = rotationRef.current
-    // Adaptive center hub: compact enough to give ample radial text span for 35 names
     const hubRadius = Math.max(34, Math.min(48, radius * 0.20))
 
     // 1. Outer drop shadow
@@ -203,7 +237,6 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
       dividerWidth = 1.0
     }
 
-    // Available radial length for text: from near hub to near rim
     const innerTextR = hubRadius + 6
     const outerTextR = radius - 8
     const availableRadialLength = Math.max(40, outerTextR - innerTextR)
@@ -212,7 +245,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     for (let i = 0; i < total; i++) {
       const startAngle = rot + i * sliceAngle
       const endAngle = startAngle + sliceAngle
-      const color = colors[i % colors.length]
+      const color = currentColors[i % currentColors.length]
 
       ctx.save()
       ctx.beginPath()
@@ -231,7 +264,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
 
       // Radial Text Calculation
       const midAngle = startAngle + sliceAngle / 2
-      const text = items[i]
+      const text = currentItems[i] || ''
       const { textColor, strokeColor } = getSliceTextStyles(color)
 
       ctx.save()
@@ -253,7 +286,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
       ctx.restore()
     }
 
-    // 5. Perimeter Pegs (Rivets for tactile feel)
+    // 5. Perimeter Pegs (Rivets for tactile mechanical feel)
     const pegCount = Math.min(Math.max(total, 12), 36)
     const pegAngleStep = (2 * Math.PI) / pegCount
     for (let p = 0; p < pegCount; p++) {
@@ -285,7 +318,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     // Hub outer border
     ctx.beginPath()
     ctx.arc(cx, cy, hubRadius, 0, 2 * Math.PI)
-    ctx.strokeStyle = hoverCenter && !isSpinning ? '#2563eb' : darkMode ? '#60a5fa' : '#334155'
+    ctx.strokeStyle = hoverCenter && !isSpinningNow ? '#2563eb' : darkMode ? '#60a5fa' : '#334155'
     ctx.lineWidth = 3.5
     ctx.stroke()
 
@@ -293,20 +326,20 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     ctx.beginPath()
     ctx.arc(cx, cy, hubRadius - 3.5, 0, 2 * Math.PI)
     ctx.fillStyle = darkMode
-      ? hoverCenter && !isSpinning
+      ? hoverCenter && !isSpinningNow
         ? '#1e3a8a'
         : '#1e293b'
-      : hoverCenter && !isSpinning
+      : hoverCenter && !isSpinningNow
       ? '#eff6ff'
       : '#ffffff'
     ctx.fill()
 
     // Center button text
-    ctx.fillStyle = hoverCenter && !isSpinning ? '#2563eb' : darkMode ? '#ffffff' : '#0f172a'
+    ctx.fillStyle = hoverCenter && !isSpinningNow ? '#2563eb' : darkMode ? '#ffffff' : '#0f172a'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
-    if (isSpinning) {
+    if (isSpinningNow) {
       ctx.font = `800 ${Math.max(11, Math.floor(hubRadius * 0.28))}px system-ui, sans-serif`
       ctx.fillText('SPINNING', cx, cy)
     } else {
@@ -366,7 +399,13 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     ctx.restore()
   }, [items, colors, isSpinning, hoverCenter, darkMode])
 
-  // Canvas resize handler
+  // Stable reference to drawWheel so resize listeners do not rebind or wipe canvas
+  const drawWheelRef = useRef(drawWheel)
+  useEffect(() => {
+    drawWheelRef.current = drawWheel
+  }, [drawWheel])
+
+  // Canvas resize handler (decoupled from drawWheel recreating to prevent canvas wiping)
   useEffect(() => {
     const handleResize = () => {
       const container = containerRef.current
@@ -378,38 +417,44 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
       const size = Math.max(280, Math.min(clientW, clientH, 540))
       const dpr = window.devicePixelRatio || 1
 
-      canvas.width = size * dpr
-      canvas.height = size * dpr
-      canvas.style.width = `${size}px`
-      canvas.style.height = `${size}px`
+      const targetW = size * dpr
+      const targetH = size * dpr
 
-      const ctx = canvas.getContext('2d')
-      if (ctx) {
-        ctx.scale(dpr, dpr)
+      // Only reassign canvas size if actual dimensions changed, preventing canvas clearing
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW
+        canvas.height = targetH
+        canvas.style.width = `${size}px`
+        canvas.style.height = `${size}px`
       }
-      drawWheel()
+      drawWheelRef.current()
     }
 
     handleResize()
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [drawWheel])
+  }, [])
 
-  // Initial draw
+  // Initial draw & redraw when items or appearance change
   useEffect(() => {
     drawWheel()
   }, [drawWheel])
 
-  // Check pegs & flapper physics on each frame
+  // Check pegs & flapper physics on each frame (updates DOM ref directly with ZERO React re-renders)
   const checkTickAndFlapper = useCallback(
-    (currentRot: number, angularVelocity: number) => {
-      if (items.length === 0) return
-      const currentSlice = getSliceUnderPointer(currentRot, items.length)
+    (currentRot: number, angularVelocity: number, activeItems: string[]) => {
+      const total = activeItems.length
+      if (total === 0) return
+
+      const currentSlice = getSliceUnderPointer(currentRot, total)
 
       if (lastSliceIndexRef.current !== -1 && currentSlice !== lastSliceIndexRef.current) {
-        const velocityMultiplier = Math.min(angularVelocity / 0.05, 3.0)
+        const velocityMultiplier = Math.min(Math.abs(angularVelocity) / 0.05, 3.0)
         flapperDeflectionRef.current = -0.28 * Math.min(velocityMultiplier, 1.2)
-        setHighlightedName(items[currentSlice] || '')
+        const name = activeItems[currentSlice] || ''
+        if (livePointerTextRef.current) {
+          livePointerTextRef.current.textContent = name
+        }
       }
       lastSliceIndexRef.current = currentSlice
 
@@ -419,39 +464,76 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
         flapperDeflectionRef.current = 0
       }
     },
-    [items, getSliceUnderPointer]
+    []
   )
 
-  // Spin trigger
+  // Spin trigger with atomic internal lock and snapshot isolation
   const spin = useCallback(() => {
-    if (isSpinning || items.length === 0) return
+    // 1. Strict lock: Never allow duplicate or overlapping spins
+    if (isSpinningInternalRef.current || isSpinning || items.length === 0) {
+      return
+    }
+
+    isSpinningInternalRef.current = true
+
+    // 2. Snapshot current items and colors so mid-spin prop changes never mutate the active spin
+    const spinItems = [...items]
+    const spinColors = colors && colors.length > 0 ? [...colors] : ['#2563eb', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6']
+    const total = spinItems.length
+    if (total === 0) {
+      isSpinningInternalRef.current = false
+      return
+    }
+
+    spinningItemsRef.current = spinItems
+    spinningColorsRef.current = spinColors
+
+    // 3. Predetermine the winning index and winner name
+    const winningIndex = Math.floor(Math.random() * total)
+    const winner = spinItems[winningIndex] || spinItems[0] || 'Pemenang'
+    targetWinnerRef.current = winner
+
+    // 4. Exact target angle calculation
+    const sliceAngle = (2 * Math.PI) / total
+    // Safe random offset inside slice (15% to 85% range)
+    const randomOffsetInSlice = (0.15 + Math.random() * 0.70) * sliceAngle
+    const targetNormalizedAngle = winningIndex * sliceAngle + randomOffsetInSlice
+
+    const twoPi = 2 * Math.PI
+    const desiredMod = ((twoPi - (targetNormalizedAngle % twoPi)) + twoPi) % twoPi
+    const currentMod = ((rotationRef.current % twoPi) + twoPi) % twoPi
+
+    let forwardDelta = desiredMod - currentMod
+    if (forwardDelta < 0) {
+      forwardDelta += twoPi
+    }
+
+    const fullSpins = (5 + Math.floor(Math.random() * 4)) * twoPi
+    const startRot = rotationRef.current
+    const targetRot = startRot + fullSpins + forwardDelta
+    const totalDelta = targetRot - startRot
+
+    const durationMs = Math.max(800, (spinDuration || 3) * 1000)
+    const startTime = performance.now()
+    let previousRot = startRot
+
+    // Cancel any previous animation frame before starting
+    if (animFrameRef.current !== null) {
+      cancelAnimationFrame(animFrameRef.current)
+      animFrameRef.current = null
+    }
 
     onSpinStart()
 
-    const total = items.length
-    const winningIndex = Math.floor(Math.random() * total)
-    const sliceAngle = (2 * Math.PI) / total
-
-    const randomOffsetInSlice = (0.15 + Math.random() * 0.7) * sliceAngle
-    const targetNormalizedAngle = winningIndex * sliceAngle + randomOffsetInSlice
-
-    const fullSpins = 6 + Math.floor(Math.random() * 4)
-    const currentRot = rotationRef.current
-    const targetRot =
-      currentRot +
-      fullSpins * (2 * Math.PI) +
-      ((2 * Math.PI - (targetNormalizedAngle % (2 * Math.PI))) % (2 * Math.PI))
-
-    const startRot = currentRot
-    const totalDelta = targetRot - startRot
-    const startTime = performance.now()
-    const durationMs = spinDuration * 1000
-
-    let previousRot = startRot
-
     const animate = (now: number) => {
+      // Abort if lock was cleared externally (e.g. unmount or reset)
+      if (!isSpinningInternalRef.current) {
+        animFrameRef.current = null
+        return
+      }
+
       const elapsed = now - startTime
-      const progress = Math.min(elapsed / durationMs, 1)
+      const progress = Math.min(Math.max(elapsed / durationMs, 0), 1)
 
       // Quintic ease-out for super smooth realistic deceleration
       const eased = 1 - Math.pow(1 - progress, 5)
@@ -461,19 +543,29 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
       const frameVelocity = currentAngle - previousRot
       previousRot = currentAngle
 
-      checkTickAndFlapper(currentAngle, frameVelocity)
-      drawWheel()
+      checkTickAndFlapper(currentAngle, frameVelocity, spinItems)
+      drawWheelRef.current()
 
       if (progress < 1) {
         animFrameRef.current = requestAnimationFrame(animate)
       } else {
         rotationRef.current = targetRot
-        drawWheel()
+        isSpinningInternalRef.current = false
+        animFrameRef.current = null
 
-        const finalSliceIndex = getSliceUnderPointer(targetRot, items.length)
-        const winner = items[finalSliceIndex]
-        setHighlightedName(winner)
-        onSpinEnd(winner)
+        drawWheelRef.current()
+
+        const finalWinner = targetWinnerRef.current || winner
+        if (livePointerTextRef.current) {
+          livePointerTextRef.current.textContent = finalWinner
+        }
+        setHighlightedName(finalWinner)
+
+        try {
+          onSpinEnd(finalWinner)
+        } catch (err) {
+          console.error('Error in onSpinEnd:', err)
+        }
       }
     }
 
@@ -481,24 +573,35 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
   }, [
     isSpinning,
     items,
+    colors,
     spinDuration,
     onSpinStart,
     onSpinEnd,
     checkTickAndFlapper,
-    drawWheel,
-    getSliceUnderPointer,
   ])
+
+  // Reset helper
+  const reset = useCallback(() => {
+    if (animFrameRef.current !== null) {
+      cancelAnimationFrame(animFrameRef.current)
+      animFrameRef.current = null
+    }
+    isSpinningInternalRef.current = false
+    flapperDeflectionRef.current = 0
+    drawWheelRef.current()
+  }, [])
 
   useImperativeHandle(
     ref,
     () => ({
       spin,
+      reset,
     }),
-    [spin]
+    [spin, reset]
   )
 
   const handleCanvasClick = () => {
-    if (isSpinning || items.length === 0) return
+    if (isSpinningInternalRef.current || isSpinning || items.length === 0) return
     spin()
   }
 
@@ -516,11 +619,14 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     setHoverCenter(dist <= hubRadius)
   }
 
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (animFrameRef.current) {
+      if (animFrameRef.current !== null) {
         cancelAnimationFrame(animFrameRef.current)
+        animFrameRef.current = null
       }
+      isSpinningInternalRef.current = false
     }
   }, [])
 
@@ -539,7 +645,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
       />
 
       {/* Live Pointer Indicator HUD */}
-      {items.length > 0 && highlightedName && (
+      {items.length > 0 && (
         <div
           className={`mt-2.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border shadow-xs transition-all flex items-center gap-2 max-w-[85%] truncate ${
             darkMode
@@ -551,7 +657,10 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
           <span className="text-[11px] text-slate-500 dark:text-slate-400 shrink-0">
             Pointing at:
           </span>
-          <span className="font-bold text-blue-600 dark:text-blue-400 truncate">
+          <span
+            ref={livePointerTextRef}
+            className="font-bold text-blue-600 dark:text-blue-400 truncate"
+          >
             {highlightedName}
           </span>
         </div>
