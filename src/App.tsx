@@ -214,7 +214,7 @@ export function App() {
       className={`flex flex-col min-h-screen transition-colors ${
         settings.darkMode
           ? 'bg-slate-950 text-slate-100'
-          : 'bg-[#f4f6f8] text-slate-800'
+          : 'bg-[#edf0f5] text-slate-900'
       }`}
     >
       {/* Top Header Navigation */}
@@ -230,10 +230,10 @@ export function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
         {/* Left Stage: Wheel Area */}
         <section
-          className={`lg:col-span-7 xl:col-span-8 flex flex-col items-center justify-center rounded-2xl p-4 sm:p-6 border shadow-xs relative overflow-hidden transition-colors min-h-[460px] lg:min-h-[600px] ${
+          className={`lg:col-span-7 xl:col-span-8 flex flex-col items-center justify-center rounded-2xl p-4 sm:p-6 border shadow-sm relative overflow-hidden transition-colors min-h-[460px] lg:min-h-[600px] ${
             settings.darkMode
-              ? 'bg-slate-900 border-slate-800'
-              : 'bg-white border-slate-200'
+              ? 'bg-slate-900 border-slate-700'
+              : 'bg-white border-slate-300'
           }`}
         >
           {/* Canvas Wheel Component */}
@@ -247,13 +247,13 @@ export function App() {
             onSpinEnd={handleSpinEnd}
           />
 
-          {/* Quick Instruction */}
-          <div className="mt-3 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded border border-slate-300 dark:border-slate-700 font-mono text-[11px] font-bold">
+          {/* Quick Instruction with High-Contrast Text */}
+          <div className="mt-3.5 flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 font-bold">
+            <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 bg-slate-200 dark:bg-slate-800 rounded-md border border-slate-400 dark:border-slate-600 font-mono text-[11px] font-extrabold shadow-2xs">
               SPASI
             </span>
             <span className="hidden sm:inline">atau klik roda untuk memutar</span>
-            <span className="sm:hidden font-medium">Ketuk roda untuk memutar</span>
+            <span className="sm:hidden font-extrabold">Ketuk roda untuk memutar</span>
           </div>
         </section>
 

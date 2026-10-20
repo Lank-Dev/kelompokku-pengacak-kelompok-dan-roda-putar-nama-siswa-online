@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { getContrastTextColor, truncateText } from '../utils/color'
+import { getSliceTextStyles, truncateText } from '../utils/color'
 
 interface WheelProps {
   items: string[]
@@ -55,7 +55,7 @@ export const Wheel: React.FC<WheelProps> = ({
     }
   }, [items, getSliceUnderPointer])
 
-  // Draw wheel function (Optimized for 2 to 500+ names)
+  // Draw wheel function with guaranteed high-contrast rendering
   const drawWheel = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -75,14 +75,14 @@ export const Wheel: React.FC<WheelProps> = ({
       // Empty state
       ctx.beginPath()
       ctx.arc(cx, cy, radius, 0, 2 * Math.PI)
-      ctx.fillStyle = darkMode ? '#1e293b' : '#f1f5f9'
+      ctx.fillStyle = darkMode ? '#1e293b' : '#f8fafc'
       ctx.fill()
       ctx.lineWidth = 3
-      ctx.strokeStyle = darkMode ? '#475569' : '#cbd5e1'
+      ctx.strokeStyle = darkMode ? '#475569' : '#94a3b8'
       ctx.stroke()
 
-      ctx.fillStyle = darkMode ? '#94a3b8' : '#64748b'
-      ctx.font = '600 16px system-ui, sans-serif'
+      ctx.fillStyle = darkMode ? '#f1f5f9' : '#1e293b'
+      ctx.font = 'bold 16px system-ui, sans-serif'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.fillText('Tambahkan nama terlebih dahulu', cx, cy)
@@ -99,26 +99,26 @@ export const Wheel: React.FC<WheelProps> = ({
     ctx.beginPath()
     ctx.arc(cx, cy, radius + 8, 0, 2 * Math.PI)
     ctx.fillStyle = darkMode ? '#0f172a' : '#ffffff'
-    ctx.shadowColor = darkMode ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.12)'
-    ctx.shadowBlur = 18
-    ctx.shadowOffsetY = 5
+    ctx.shadowColor = darkMode ? 'rgba(0, 0, 0, 0.75)' : 'rgba(15, 23, 42, 0.2)'
+    ctx.shadowBlur = 22
+    ctx.shadowOffsetY = 6
     ctx.fill()
     ctx.restore()
 
-    // Outer border ring
+    // Outer border ring with high contrast
     ctx.save()
     ctx.beginPath()
     ctx.arc(cx, cy, radius + 6, 0, 2 * Math.PI)
-    ctx.lineWidth = 6
-    ctx.strokeStyle = darkMode ? '#334155' : '#e2e8f0'
+    ctx.lineWidth = 7
+    ctx.strokeStyle = darkMode ? '#334155' : '#cbd5e1'
     ctx.stroke()
     ctx.restore()
 
-    // 2. Divider stroke width configuration (Adapts safely for hundreds of names)
+    // 2. Divider stroke width configuration
     let dividerWidth = 2
     let showDivider = true
     if (total > 200) {
-      showDivider = false // No white lines when slices are razor thin
+      showDivider = false
     } else if (total > 80) {
       dividerWidth = 0.5
     } else if (total > 40) {
@@ -141,12 +141,12 @@ export const Wheel: React.FC<WheelProps> = ({
 
       if (showDivider) {
         ctx.lineWidth = dividerWidth
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)'
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)'
         ctx.stroke()
       }
       ctx.restore()
 
-      // 4. Draw Radial Text (Scale-Safe for Hundreds of Names)
+      // 4. Draw Radial Text with Dual-Pass Outline Contrast
       const shouldDrawText =
         total <= 120 ||
         (total <= 200 && arcLengthAtRim >= 7) ||
@@ -160,38 +160,43 @@ export const Wheel: React.FC<WheelProps> = ({
         ctx.translate(cx, cy)
         ctx.rotate(midAngle)
 
-        const contrastColor = getContrastTextColor(color)
-        ctx.fillStyle = contrastColor
+        const { textColor, strokeColor } = getSliceTextStyles(color)
         ctx.textBaseline = 'middle'
         ctx.textAlign = 'right'
 
         // Dynamic font size computation
         let fontSize = Math.min(
           22,
-          Math.max(8, Math.floor(arcLengthAtRim * 0.7))
+          Math.max(8.5, Math.floor(arcLengthAtRim * 0.72))
         )
         if (total <= 6) fontSize = 24
         else if (total <= 12) fontSize = 18
         else if (total <= 30) fontSize = 14
-        else if (total <= 60) fontSize = 11
-        else if (total <= 100) fontSize = 9
-        else fontSize = 8
+        else if (total <= 60) fontSize = 11.5
+        else if (total <= 100) fontSize = 9.5
+        else fontSize = 8.5
 
         ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`
-        const maxTextWidth = radius - (radius * 0.22 + 20)
+        const maxTextWidth = radius - (radius * 0.22 + 22)
         const fittedText = truncateText(ctx, text, maxTextWidth)
 
-        if (contrastColor === '#ffffff' && fontSize >= 11) {
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.4)'
-          ctx.shadowBlur = 2
+        // Pass 1: Crisp Outline stroke for 100% legibility against ANY background
+        if (fontSize >= 9.5) {
+          ctx.lineWidth = Math.min(3, Math.max(1.5, fontSize * 0.22))
+          ctx.strokeStyle = strokeColor
+          ctx.lineJoin = 'round'
+          ctx.miterLimit = 2
+          ctx.strokeText(fittedText, radius - 16, 0)
         }
 
+        // Pass 2: Foreground Text
+        ctx.fillStyle = textColor
         ctx.fillText(fittedText, radius - 16, 0)
         ctx.restore()
       }
     }
 
-    // 5. Perimeter Pegs (Capped so it never becomes a black blob)
+    // 5. Perimeter Pegs (Rivets for tactile mechanical feel)
     const pegCount = Math.min(Math.max(total, 12), 36)
     const pegAngleStep = (2 * Math.PI) / pegCount
     for (let p = 0; p < pegCount; p++) {
@@ -201,36 +206,38 @@ export const Wheel: React.FC<WheelProps> = ({
 
       ctx.save()
       ctx.beginPath()
-      ctx.arc(px, py, 2.5, 0, 2 * Math.PI)
-      ctx.fillStyle = darkMode ? '#e2e8f0' : '#475569'
+      ctx.arc(px, py, 3, 0, 2 * Math.PI)
+      ctx.fillStyle = darkMode ? '#f8fafc' : '#1e293b'
+      ctx.shadowColor = 'rgba(0,0,0,0.3)'
+      ctx.shadowBlur = 2
       ctx.fill()
       ctx.restore()
     }
 
-    // 6. Center Hub (Crisp White Hub with Click Indicator)
+    // 6. Center Hub with High-Contrast Finish
     ctx.save()
-    const hubRadius = Math.max(44, Math.min(62, radius * 0.22))
+    const hubRadius = Math.max(46, Math.min(62, radius * 0.22))
 
-    // Hub drop shadow
+    // Hub shadow
     ctx.beginPath()
     ctx.arc(cx, cy, hubRadius, 0, 2 * Math.PI)
-    ctx.fillStyle = darkMode ? '#1e293b' : '#ffffff'
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.22)'
-    ctx.shadowBlur = 10
-    ctx.shadowOffsetY = 2
+    ctx.fillStyle = darkMode ? '#0f172a' : '#ffffff'
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.35)'
+    ctx.shadowBlur = 14
+    ctx.shadowOffsetY = 3
     ctx.fill()
 
-    // Hub rim border
+    // Hub outer contrast border
     ctx.beginPath()
     ctx.arc(cx, cy, hubRadius, 0, 2 * Math.PI)
     ctx.strokeStyle =
-      hoverCenter && !isSpinning ? '#3b82f6' : darkMode ? '#334155' : '#cbd5e1'
-    ctx.lineWidth = 3.5
+      hoverCenter && !isSpinning ? '#2563eb' : darkMode ? '#60a5fa' : '#1e293b'
+    ctx.lineWidth = 4
     ctx.stroke()
 
     // Hub inner circle face
     ctx.beginPath()
-    ctx.arc(cx, cy, hubRadius - 3.5, 0, 2 * Math.PI)
+    ctx.arc(cx, cy, hubRadius - 4, 0, 2 * Math.PI)
     ctx.fillStyle = darkMode
       ? hoverCenter && !isSpinning
         ? '#1e3a8a'
@@ -240,8 +247,8 @@ export const Wheel: React.FC<WheelProps> = ({
       : '#ffffff'
     ctx.fill()
 
-    // Center button text
-    ctx.fillStyle = hoverCenter && !isSpinning ? '#2563eb' : darkMode ? '#f8fafc' : '#1e293b'
+    // Center button text with maximum contrast
+    ctx.fillStyle = hoverCenter && !isSpinning ? '#1d4ed8' : darkMode ? '#ffffff' : '#0f172a'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
@@ -252,14 +259,14 @@ export const Wheel: React.FC<WheelProps> = ({
       ctx.font = `900 ${Math.max(13, Math.floor(hubRadius * 0.32))}px system-ui, sans-serif`
       ctx.fillText('PUTAR', cx, cy - (hubRadius > 50 ? 6 : 0))
       if (hubRadius > 50) {
-        ctx.font = '600 10px system-ui, sans-serif'
-        ctx.fillStyle = darkMode ? '#94a3b8' : '#64748b'
+        ctx.font = 'bold 10px system-ui, sans-serif'
+        ctx.fillStyle = darkMode ? '#94a3b8' : '#475569'
         ctx.fillText('KLIK SAYA', cx, cy + 12)
       }
     }
     ctx.restore()
 
-    // 7. Right-side Pointer / Ticker Flapper (3 o'clock position)
+    // 7. Right-side Pointer / Flapper (High Contrast Crimson Red with White Rim)
     const pointerX = cx + radius + 10
     const pointerY = cy
     const flapperDeflection = flapperDeflectionRef.current
@@ -268,30 +275,40 @@ export const Wheel: React.FC<WheelProps> = ({
     ctx.translate(pointerX, pointerY)
     ctx.rotate(flapperDeflection)
 
-    ctx.shadowColor = 'rgba(0,0,0,0.3)'
-    ctx.shadowBlur = 6
+    // Deep shadow for pointer
+    ctx.shadowColor = 'rgba(0,0,0,0.5)'
+    ctx.shadowBlur = 8
     ctx.shadowOffsetX = -2
     ctx.shadowOffsetY = 2
 
     // Triangular flapper pointing left
     ctx.beginPath()
-    ctx.moveTo(-28, 0)
-    ctx.lineTo(8, -12)
+    ctx.moveTo(-30, 0)
+    ctx.lineTo(8, -13)
     ctx.lineTo(14, 0)
-    ctx.lineTo(8, 12)
+    ctx.lineTo(8, 13)
     ctx.closePath()
 
-    ctx.fillStyle = '#1e293b'
+    // High contrast gradient
+    const ptrGrad = ctx.createLinearGradient(-30, 0, 14, 0)
+    ptrGrad.addColorStop(0, '#dc2626') // Vivid Red
+    ptrGrad.addColorStop(1, '#991b1b') // Deep Crimson
+    ctx.fillStyle = ptrGrad
     ctx.fill()
-    ctx.lineWidth = 2
+
+    // 2.5px pure white border for extreme contrast against any wedge
+    ctx.lineWidth = 2.5
     ctx.strokeStyle = '#ffffff'
     ctx.stroke()
 
-    // Pivot pin
+    // Pivot pin (Gold/Metallic)
     ctx.beginPath()
     ctx.arc(7, 0, 3.5, 0, 2 * Math.PI)
-    ctx.fillStyle = '#f8fafc'
+    ctx.fillStyle = '#fbbf24'
     ctx.fill()
+    ctx.lineWidth = 1
+    ctx.strokeStyle = '#ffffff'
+    ctx.stroke()
     ctx.restore()
   }, [items, colors, isSpinning, hoverCenter, darkMode])
 
@@ -327,14 +344,13 @@ export const Wheel: React.FC<WheelProps> = ({
     drawWheel()
   }, [drawWheel])
 
-  // Check pegs / tick sounds and flapper physics on each frame
+  // Check pegs & flapper physics on each frame
   const checkTickAndFlapper = useCallback(
     (currentRot: number, angularVelocity: number) => {
       if (items.length === 0) return
       const currentSlice = getSliceUnderPointer(currentRot, items.length)
 
       if (lastSliceIndexRef.current !== -1 && currentSlice !== lastSliceIndexRef.current) {
-        // Visual flapper bounce (silent, ultra-fast)
         const velocityMultiplier = Math.min(angularVelocity / 0.05, 3.0)
         flapperDeflectionRef.current = -0.32 * Math.min(velocityMultiplier, 1.2)
         setHighlightedName(items[currentSlice] || '')
@@ -350,18 +366,16 @@ export const Wheel: React.FC<WheelProps> = ({
     [items, getSliceUnderPointer]
   )
 
-  // Spin trigger (Ultra-snappy)
+  // Spin trigger
   const spin = useCallback(() => {
     if (isSpinning || items.length === 0) return
 
     onSpinStart()
 
-    // Decide winning index uniformly at random
     const total = items.length
     const winningIndex = Math.floor(Math.random() * total)
     const sliceAngle = (2 * Math.PI) / total
 
-    // Safe random margin within winning slice
     const randomOffsetInSlice = (0.15 + Math.random() * 0.7) * sliceAngle
     const targetNormalizedAngle = winningIndex * sliceAngle + randomOffsetInSlice
 
@@ -383,7 +397,6 @@ export const Wheel: React.FC<WheelProps> = ({
       const elapsed = now - startTime
       const progress = Math.min(elapsed / durationMs, 1)
 
-      // Quintic ease out
       const eased = 1 - Math.pow(1 - progress, 5)
       const currentAngle = startRot + totalDelta * eased
       rotationRef.current = currentAngle
@@ -397,7 +410,6 @@ export const Wheel: React.FC<WheelProps> = ({
       if (progress < 1) {
         animFrameRef.current = requestAnimationFrame(animate)
       } else {
-        // Spin finished!
         rotationRef.current = targetRot
         drawWheel()
 
@@ -434,7 +446,7 @@ export const Wheel: React.FC<WheelProps> = ({
     const cx = rect.width / 2
     const cy = rect.height / 2
     const dist = Math.hypot(x - cx, y - cy)
-    const hubRadius = Math.max(44, Math.min(62, (rect.width / 2 - 24) * 0.22))
+    const hubRadius = Math.max(46, Math.min(62, (rect.width / 2 - 24) * 0.22))
 
     setHoverCenter(dist <= hubRadius)
   }
@@ -461,18 +473,20 @@ export const Wheel: React.FC<WheelProps> = ({
         title="Klik untuk memutar roda! (Atau tekan Spasi)"
       />
 
-      {/* Live Pointer Indicator HUD (Sangat membantu saat ada puluhan/ratusan nama) */}
+      {/* Live Pointer Indicator HUD with High-Contrast Styling */}
       {items.length > 0 && highlightedName && (
         <div
-          className={`mt-2 px-3 py-1 rounded-full text-xs font-semibold border shadow-xs transition-all flex items-center gap-2 max-w-[85%] truncate ${
+          className={`mt-2.5 px-3.5 py-1.5 rounded-full text-xs font-bold border shadow-sm transition-all flex items-center gap-2 max-w-[85%] truncate ${
             darkMode
-              ? 'bg-slate-800/90 border-slate-700 text-slate-200'
-              : 'bg-white/95 border-slate-200 text-slate-700'
+              ? 'bg-slate-900 border-slate-700 text-slate-100 shadow-black/40'
+              : 'bg-white border-slate-300 text-slate-900 shadow-slate-200'
           }`}
         >
-          <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
-          <span className="text-[11px] opacity-70 shrink-0">Menunjuk:</span>
-          <span className="font-bold text-blue-600 dark:text-blue-400 truncate">
+          <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse shrink-0 ring-2 ring-red-400/30" />
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold shrink-0">
+            Menunjuk:
+          </span>
+          <span className="font-extrabold text-blue-700 dark:text-blue-400 truncate">
             {highlightedName}
           </span>
         </div>

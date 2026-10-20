@@ -30,18 +30,15 @@ export const WinnerModal: React.FC<WinnerModalProps> = ({
   useEffect(() => {
     if (!winner || !confettiEnabled) return
 
-    // Multi-stage confetti celebration
     const duration = 2.5 * 1000
     const end = Date.now() + duration
 
-    // Initial big blast
     confetti({
       particleCount: 110,
       spread: 90,
       origin: { y: 0.6 },
     })
 
-    // Continuous side cannons
     const interval: number = window.setInterval(() => {
       if (Date.now() > end) {
         return clearInterval(interval)
@@ -70,12 +67,12 @@ export const WinnerModal: React.FC<WinnerModalProps> = ({
     : 'Kami punya pemenang!'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-150">
       <div
         className={`relative w-full max-w-md rounded-3xl p-6 sm:p-8 text-center shadow-2xl border transform transition-all scale-100 animate-in zoom-in-95 duration-150 ${
           darkMode
-            ? 'bg-slate-900 border-slate-700 text-white shadow-black/60'
-            : 'bg-white border-slate-200 text-slate-800 shadow-xl'
+            ? 'bg-slate-900 border-slate-700 text-white shadow-black/80'
+            : 'bg-white border-slate-300 text-slate-900 shadow-2xl'
         }`}
         role="dialog"
         aria-modal="true"
@@ -84,7 +81,9 @@ export const WinnerModal: React.FC<WinnerModalProps> = ({
         <button
           onClick={onClose}
           className={`absolute top-4 right-4 p-2 rounded-full transition-colors ${
-            darkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+            darkMode
+              ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+              : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
           }`}
           title="Tutup (Esc)"
         >
@@ -97,39 +96,39 @@ export const WinnerModal: React.FC<WinnerModalProps> = ({
         </div>
 
         {/* Round Badge */}
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 mb-2 text-xs font-semibold tracking-wide uppercase bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-full">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 mb-2 text-xs font-bold tracking-wide uppercase bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40 rounded-full">
           <Sparkles className="w-3.5 h-3.5" />
           Putaran #{round}
         </div>
 
-        {/* Winning Headline (Wheel of Names Style) */}
-        <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">
+        {/* Winning Headline with High Contrast */}
+        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">
           {displayMessage}
         </h3>
 
         {/* Big Winning Name Display */}
         <div
-          className={`my-4 p-4 sm:p-5 rounded-2xl border shadow-inner ${
+          className={`my-4 p-5 rounded-2xl border-2 shadow-inner ${
             darkMode
-              ? 'bg-slate-950/60 border-slate-800'
-              : 'bg-slate-50 border-slate-200'
+              ? 'bg-slate-950 border-slate-700'
+              : 'bg-slate-50 border-slate-300'
           }`}
         >
-          <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-blue-600 dark:text-yellow-400 break-words">
+          <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-blue-700 dark:text-yellow-400 break-words drop-shadow-xs">
             {winner}
           </h2>
         </div>
 
-        <p className="text-xs text-slate-400 dark:text-slate-500 mb-5">
+        <p className="text-xs text-slate-600 dark:text-slate-400 font-semibold mb-5">
           Tersisa {remainingCount} nama di roda putar
         </p>
 
-        {/* Action Buttons (Wheel of Names Style: Tutup & Hapus) */}
+        {/* Action Buttons */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           {showRemoveButton && (
             <button
               onClick={() => onRemoveWinner(winner)}
-              className="flex items-center justify-center gap-2 px-4 py-3 bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md transition-all hover:scale-[1.02]"
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-extrabold text-xs rounded-xl shadow-md transition-all hover:scale-[1.02]"
               title="Hapus nama pemenang dari roda"
             >
               <Trash2 className="w-4 h-4" />
@@ -139,10 +138,10 @@ export const WinnerModal: React.FC<WinnerModalProps> = ({
 
           <button
             onClick={onClose}
-            className={`flex items-center justify-center gap-2 px-4 py-3 font-bold text-xs rounded-xl border transition-all hover:scale-[1.02] ${
+            className={`flex items-center justify-center gap-2 px-4 py-3 font-extrabold text-xs rounded-xl border transition-all hover:scale-[1.02] shadow-xs ${
               darkMode
-                ? 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                ? 'bg-slate-800 hover:bg-slate-700 text-white border-slate-600'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-900 border-slate-300'
             }`}
           >
             Tutup
@@ -151,7 +150,7 @@ export const WinnerModal: React.FC<WinnerModalProps> = ({
 
         <button
           onClick={onSpinAgain}
-          className="mt-3 inline-flex items-center justify-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+          className="mt-3.5 inline-flex items-center justify-center gap-1.5 text-xs text-blue-700 dark:text-blue-400 hover:underline font-bold"
         >
           <RotateCw className="w-3.5 h-3.5" />
           Putar Lagi Sekarang

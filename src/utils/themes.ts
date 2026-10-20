@@ -3,78 +3,74 @@ import type { WheelTheme } from '../types'
 export const WHEEL_THEMES: WheelTheme[] = [
   {
     id: 'classic-wheelofnames',
-    name: 'Wheel of Names Klasik',
+    name: 'Wheel of Names Klasik (Kontras Tinggi)',
     colors: [
-      '#3369E8', // Blue
-      '#D50F25', // Red
-      '#EEB211', // Yellow
-      '#009925', // Green
-      '#FF6D00', // Orange
-      '#9C27B0', // Purple
-      '#00BCD4', // Cyan
-      '#E91E63', // Pink
+      '#2563EB', // Royal Blue
+      '#DC2626', // Crimson Red
+      '#F59E0B', // Amber Yellow
+      '#059669', // Emerald Green
+      '#EA580C', // Deep Orange
+      '#7C3AED', // Vivid Purple
+      '#0891B2', // Deep Cyan
+      '#DB2777', // Magenta Pink
     ],
   },
   {
     id: 'google-vibrant',
     name: 'Google 4 Warna',
     colors: [
-      '#4285F4', // Blue
-      '#EA4335', // Red
-      '#FBBC05', // Yellow
-      '#34A853', // Green
+      '#1D4ED8', // Deep Blue
+      '#DC2626', // Deep Red
+      '#D97706', // Rich Gold Yellow
+      '#047857', // Forest Green
     ],
   },
   {
     id: 'pastel-soft',
-    name: 'Pastel Lembut',
+    name: 'Pastel Kontras',
     colors: [
-      '#B5E2FA',
-      '#F9BEC7',
-      '#FFDFBA',
-      '#FFFFBA',
-      '#BAFFC9',
-      '#BAE1FF',
-      '#E8D7FF',
-      '#FFC6FF',
+      '#38BDF8', // Sky Blue
+      '#FB7185', // Rose
+      '#FBBF24', // Warm Amber
+      '#34D399', // Mint Green
+      '#A78BFA', // Soft Violet
+      '#F472B6', // Soft Pink
     ],
   },
   {
     id: 'neon-cyber',
     name: 'Neon Cyberpunk',
     colors: [
-      '#00F0FF',
-      '#FF0055',
-      '#7928CA',
-      '#00FF66',
-      '#FFBE0B',
-      '#3A86FF',
+      '#0284C7', // Deep Electric Blue
+      '#E11D48', // Neon Crimson
+      '#7C3AED', // Cyber Violet
+      '#059669', // Emerald
+      '#D97706', // Amber Gold
+      '#C026D3', // Fuchsia
     ],
   },
   {
     id: 'ocean-breeze',
-    name: 'Biru Lautan',
+    name: 'Biru Lautan Gradasi',
     colors: [
-      '#03045E',
-      '#0077B6',
-      '#0096C7',
-      '#00B4D8',
-      '#48CAE4',
-      '#90E0EF',
+      '#1E3A8A', // Navy 900
+      '#0369A1', // Sky 700
+      '#0284C7', // Sky 600
+      '#0EA5E9', // Sky 500
+      '#1D4ED8', // Blue 700
+      '#2563EB', // Blue 600
     ],
   },
   {
     id: 'sunset-glow',
     name: 'Sunset Orange & Merah',
     colors: [
-      '#780000',
-      '#C1121F',
-      '#FDF0D5',
-      '#669BBC',
-      '#C75146',
-      '#E8985E',
-      '#F4A261',
-      '#E76F51',
+      '#991B1B', // Dark Red
+      '#C2410C', // Burnt Orange
+      '#B45309', // Amber Dark
+      '#BE123C', // Rose 700
+      '#EA580C', // Orange 600
+      '#D97706', // Gold 600
     ],
   },
 ]
