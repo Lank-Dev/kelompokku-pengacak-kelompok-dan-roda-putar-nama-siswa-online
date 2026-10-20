@@ -1,353 +1,487 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Trophy } from 'lucide-react'
-import { Header } from './components/Header'
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { Sun, Moon } from 'lucide-react'
+import confetti from 'canvas-confetti'
 import { Wheel, type WheelHandle } from './components/Wheel'
-import { SidebarTabs } from './components/SidebarTabs'
-import { WinnerModal } from './components/WinnerModal'
-import { SettingsModal } from './components/SettingsModal'
-import { GroupDivider } from './components/GroupDivider'
-import type { WheelSettings, WinnerRecord } from './types'
+import {
+  setupEngine,
+  DEFAULT_RAW_STUDENTS,
+  type GroupResult,
+} from './utils/spinnerEngine'
 import { WHEEL_THEMES } from './utils/themes'
-import { PRESET_LISTS } from './utils/presets'
-
-const DEFAULT_ITEMS = PRESET_LISTS[0].items
-
-const DEFAULT_SETTINGS: WheelSettings = {
-  spinDuration: 3, // Fast & snappy 3-second spin
-  confettiEnabled: true,
-  winningMessage: 'Kami punya pemenang!',
-  themeId: 'classic-wheelofnames',
-  allowDuplicates: true,
-  showRemoveButton: true,
-  darkMode: false, // Default Wheel of Names clean light theme
-}
 
 export function App() {
-  const [items, setItems] = useState<string[]>(() => {
+  // Theme state (Dark & Light support)
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
     try {
-      const saved = localStorage.getItem('kocoknama_items')
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed
-      }
+      const saved = localStorage.getItem('kocok_dark_mode')
+      if (saved !== null) return JSON.parse(saved)
     } catch {
       // ignore
     }
-    return DEFAULT_ITEMS
+    return false
   })
 
-  const [settings, setSettings] = useState<WheelSettings>(() => {
-    try {
-      const saved = localStorage.getItem('kocoknama_settings')
-      if (saved) return { ...DEFAULT_SETTINGS, ...JSON.parse(saved), darkMode: false }
-    } catch {
-      // ignore
-    }
-    return DEFAULT_SETTINGS
-  })
-
-  const [history, setHistory] = useState<WinnerRecord[]>(() => {
-    try {
-      const saved = localStorage.getItem('kocoknama_history')
-      if (saved) return JSON.parse(saved)
-    } catch {
-      // ignore
-    }
-    return []
-  })
-
-  const [isSpinning, setIsSpinning] = useState<boolean>(false)
-  const [currentWinner, setCurrentWinner] = useState<string | null>(null)
-  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false)
-  const [sidebarTab, setSidebarTab] = useState<'entries' | 'results'>('entries')
-  const [appMode, setAppMode] = useState<'group-divider' | 'custom-wheel'>('group-divider')
-  const customWheelRef = useRef<WheelHandle | null>(null)
-
-  // Enforce pure light mode (strip any dark class from document)
+  // Synchronize document class
   useEffect(() => {
-    document.documentElement.classList.remove('dark')
+    if (darkMode) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+    try {
+      localStorage.setItem('kocok_dark_mode', JSON.stringify(darkMode))
+    } catch {
+      // ignore
+    }
+  }, [darkMode])
+
+  // Screen view state: 'input' (Kotak nama) or 'spinner' (Roda & Hasil)
+  const [view, setView] = useState<'input' | 'spinner'>('input')
+
+  // Kotak Nama inputs
+  const [rawText, setRawText] = useState<string>(DEFAULT_RAW_STUDENTS)
+  const [groupCountInput, setGroupCountInput] = useState<number>(6)
+
+  // Spinner & Group state
+  const [groups, setGroups] = useState<GroupResult[]>([])
+  const [wheelItems, setWheelItems] = useState<string[]>([])
+  const [currentGroupIdx, setCurrentGroupIdx] = useState<number>(0)
+  const [isSpinning, setIsSpinning] = useState<boolean>(false)
+  const [isAutoSpinning, setIsAutoSpinning] = useState<boolean>(false)
+  const [copied, setCopied] = useState<boolean>(false)
+  const [totalCount, setTotalCount] = useState<number>(0)
+
+  // Engine references for rock-solid async / auto-spin state handling
+  const wheelRef = useRef<WheelHandle | null>(null)
+  const autoSpinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const isSecretModeRef = useRef<boolean>(false)
+  const priorityPoolRef = useRef<string[]>([])
+  const remainingPoolRef = useRef<string[]>([])
+  const wheelItemsRef = useRef<string[]>([])
+  const groupsRef = useRef<GroupResult[]>([])
+  const currentGroupIdxRef = useRef<number>(0)
+  const totalCountRef = useRef<number>(0)
+  const isAutoSpinningRef = useRef<boolean>(false)
+  const priorityGroupCountRef = useRef<number>(2)
+
+  // Clear pending timers on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSpinTimeoutRef.current) {
+        clearTimeout(autoSpinTimeoutRef.current)
+      }
+    }
   }, [])
 
-  // Save changes to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem('kocoknama_items', JSON.stringify(items))
-    } catch {
-      // ignore
+  // Start button action: switch from Kotak Nama to Roda & Hasil
+  const handleStart = () => {
+    const trimmed = rawText.trim()
+    if (!trimmed) return
+
+    const count = Math.max(1, Math.min(20, groupCountInput || 6))
+    const setup = setupEngine(trimmed, count)
+
+    isSecretModeRef.current = setup.isSecretMode
+    priorityPoolRef.current = [...setup.priorityNames]
+    remainingPoolRef.current = [...setup.remainingNames]
+    groupsRef.current = setup.groups.map((g) => ({ ...g, members: [] }))
+    currentGroupIdxRef.current = 0
+    totalCountRef.current = setup.totalCount
+    setTotalCount(setup.totalCount)
+    isAutoSpinningRef.current = false
+
+    // In secret mode: initial groups (usually Kelompok 1 & 2) hold priorityPool
+    if (setup.isSecretMode) {
+      priorityGroupCountRef.current = Math.max(
+        1,
+        Math.min(count, Math.round(setup.priorityNames.length / (setup.totalCount / count)))
+      )
+      wheelItemsRef.current = [...setup.priorityNames]
+    } else {
+      wheelItemsRef.current = [...setup.remainingNames]
     }
-  }, [items])
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('kocoknama_settings', JSON.stringify(settings))
-    } catch {
-      // ignore
-    }
-  }, [settings])
+    setGroups(groupsRef.current)
+    setWheelItems(wheelItemsRef.current)
+    setCurrentGroupIdx(0)
+    setIsSpinning(false)
+    setIsAutoSpinning(false)
+    setView('spinner')
+  }
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('kocoknama_history', JSON.stringify(history))
-    } catch {
-      // ignore
-    }
-  }, [history])
-
-  // Current theme colors
-  const currentTheme = useMemo(() => {
-    return (
-      WHEEL_THEMES.find((t) => t.id === settings.themeId) || WHEEL_THEMES[0]
-    )
-  }, [settings.themeId])
-
-  // Spin lifecycle handlers
+  // Spin Start callback
   const handleSpinStart = useCallback(() => {
     setIsSpinning(true)
-    setCurrentWinner(null)
   }, [])
 
+  // Spin End callback
   const handleSpinEnd = useCallback((winner: string) => {
     setIsSpinning(false)
-    setCurrentWinner(winner)
 
-    // Add to history
-    const record: WinnerRecord = {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name: winner,
-      timestamp: new Date().toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }),
-      round: history.length + 1,
+    // 1. Add winner to current active group
+    const targetIdx = currentGroupIdxRef.current
+    if (targetIdx < groupsRef.current.length) {
+      groupsRef.current[targetIdx].members.push(winner)
+      setGroups([...groupsRef.current])
     }
-    setHistory((prev) => [record, ...prev])
-    setSidebarTab('results')
-  }, [history.length])
 
-  // Remove winner from list action
-  const handleRemoveWinner = useCallback((winnerToRemove: string) => {
-    setItems((prev) => {
-      const index = prev.indexOf(winnerToRemove)
-      if (index !== -1) {
-        const next = [...prev]
-        next.splice(index, 1)
-        return next
-      }
-      return prev
-    })
-    setCurrentWinner(null)
-  }, [])
-
-  // Spin again directly from modal
-  const handleSpinAgain = useCallback(() => {
-    setCurrentWinner(null)
-    setTimeout(() => {
-      if (customWheelRef.current) {
-        customWheelRef.current.spin()
-      }
-    }, 150)
-  }, [])
-
-  // Entries toolbar handlers
-  const handleShuffle = useCallback(() => {
-    if (isSpinning) return
-    setItems((prev) => {
-      const copy = [...prev]
-      for (let i = copy.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1))
-        ;[copy[i], copy[j]] = [copy[j], copy[i]]
-      }
-      return copy
-    })
-  }, [isSpinning])
-
-  const handleSort = useCallback(() => {
-    if (isSpinning) return
-    setItems((prev) => [...prev].sort((a, b) => a.localeCompare(b)))
-  }, [isSpinning])
-
-  const handleClearItems = useCallback(() => {
-    if (isSpinning) return
-    if (confirm('Yakin ingin mengosongkan semua daftar nama?')) {
-      setItems([])
+    // Small celebratory confetti per winner
+    try {
+      confetti({
+        particleCount: 35,
+        spread: 60,
+        origin: { y: 0.65 },
+      })
+    } catch {
+      // ignore
     }
-  }, [isSpinning])
 
-  const handleClearHistory = useCallback(() => {
-    if (confirm('Hapus semua riwayat pemenang?')) {
-      setHistory([])
+    // 2. Remove winner from current wheel items
+    wheelItemsRef.current = wheelItemsRef.current.filter((item) => item !== winner)
+
+    // 3. Check if active group has reached capacity
+    const currentGroup = groupsRef.current[targetIdx]
+    if (currentGroup && currentGroup.members.length >= currentGroup.capacity) {
+      currentGroupIdxRef.current++
+      setCurrentGroupIdx(currentGroupIdxRef.current)
     }
-  }, [])
 
-  const handleRemoveHistoryItem = useCallback((id: string) => {
-    setHistory((prev) => prev.filter((item) => item.id !== id))
-  }, [])
-
-  // Global Keyboard shortcuts: Spacebar to spin, Esc to close (Only in Custom Wheel mode)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (appMode !== 'custom-wheel') return
-      const activeEl = document.activeElement as HTMLElement | null
-      const targetTag = activeEl?.tagName?.toLowerCase()
+    // 4. Update wheel items for next turn
+    if (isSecretModeRef.current) {
+      // Transition from priority pool to remaining pool once priority groups are filled
       if (
-        targetTag === 'textarea' ||
-        targetTag === 'input' ||
-        targetTag === 'select' ||
-        activeEl?.isContentEditable
+        currentGroupIdxRef.current >= priorityGroupCountRef.current &&
+        wheelItemsRef.current.length === 0
       ) {
-        return
-      }
-
-      if (e.code === 'Space' || e.key === ' ') {
-        // If user is focused on a button, do not hijack space
-        if (targetTag === 'button') return
-
-        e.preventDefault()
-        if (!isSpinning && items.length > 0 && !currentWinner && !isSettingsOpen) {
-          customWheelRef.current?.spin()
-        }
-      }
-
-      if (e.key === 'Escape') {
-        if (currentWinner) setCurrentWinner(null)
-        if (isSettingsOpen) setIsSettingsOpen(false)
+        wheelItemsRef.current = [...remainingPoolRef.current]
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [appMode, isSpinning, items.length, currentWinner, isSettingsOpen])
+    setWheelItems([...wheelItemsRef.current])
+
+    // 5. Check if all participants are placed
+    const totalAssigned = groupsRef.current.reduce((acc, g) => acc + g.members.length, 0)
+    if (
+      totalAssigned >= totalCountRef.current ||
+      currentGroupIdxRef.current >= groupsRef.current.length ||
+      wheelItemsRef.current.length === 0
+    ) {
+      isAutoSpinningRef.current = false
+      setIsAutoSpinning(false)
+      wheelItemsRef.current = []
+      setWheelItems([])
+
+      try {
+        confetti({
+          particleCount: 130,
+          spread: 90,
+          origin: { y: 0.5 },
+        })
+      } catch {
+        // ignore
+      }
+      return
+    }
+
+    // 6. If auto-spin is running, trigger next spin
+    if (isAutoSpinningRef.current) {
+      autoSpinTimeoutRef.current = setTimeout(() => {
+        if (isAutoSpinningRef.current && wheelRef.current) {
+          wheelRef.current.spin()
+        }
+      }, 550)
+    }
+  }, [])
+
+  // Single spin button
+  const handleSingleSpin = () => {
+    if (isSpinning || isAutoSpinning || wheelItems.length === 0) return
+    if (wheelRef.current) {
+      wheelRef.current.spin()
+    }
+  }
+
+  // Auto spin toggle
+  const handleToggleAutoSpin = () => {
+    if (wheelItems.length === 0) return
+
+    if (isAutoSpinning) {
+      setIsAutoSpinning(false)
+      isAutoSpinningRef.current = false
+      if (autoSpinTimeoutRef.current) {
+        clearTimeout(autoSpinTimeoutRef.current)
+        autoSpinTimeoutRef.current = null
+      }
+    } else {
+      setIsAutoSpinning(true)
+      isAutoSpinningRef.current = true
+      if (!isSpinning && wheelRef.current) {
+        wheelRef.current.spin()
+      }
+    }
+  }
+
+  // Reset / Ulang button: returns to Kotak Nama screen
+  const handleReset = () => {
+    setIsAutoSpinning(false)
+    isAutoSpinningRef.current = false
+    setIsSpinning(false)
+    setTotalCount(0)
+    totalCountRef.current = 0
+    if (autoSpinTimeoutRef.current) {
+      clearTimeout(autoSpinTimeoutRef.current)
+      autoSpinTimeoutRef.current = null
+    }
+    setView('input')
+  }
+
+  // Salin hasil button
+  const handleCopyResults = () => {
+    const lines: string[] = []
+    groups.forEach((grp) => {
+      lines.push(`${grp.name}:`)
+      if (grp.members.length === 0) {
+        lines.push('-')
+      } else {
+        grp.members.forEach((m, idx) => {
+          lines.push(`${idx + 1}. ${m}`)
+        })
+      }
+      lines.push('')
+    })
+
+    navigator.clipboard.writeText(lines.join('\n').trim())
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const isCompleted =
+    groups.length > 0 &&
+    totalCount > 0 &&
+    groups.reduce((acc, g) => acc + g.members.length, 0) >= totalCount
+
+  const wheelColors = WHEEL_THEMES[0].colors
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#edf0f5] text-slate-900">
-      {/* Top Header Navigation */}
-      <Header
-        activeMode={appMode}
-        onSelectMode={setAppMode}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-      />
+    <div className={`min-h-screen flex flex-col font-sans transition-colors duration-200 ${
+      darkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'
+    }`}>
+      {/* Discreet Theme Switch (Sun/Moon) Top-Right */}
+      <header className="w-full flex items-center justify-end px-4 py-3 sm:px-6">
+        <button
+          onClick={() => setDarkMode(!darkMode)}
+          className={`p-2 rounded-xl transition-colors cursor-pointer border ${
+            darkMode
+              ? 'border-slate-800 bg-slate-900 text-slate-300 hover:text-white'
+              : 'border-slate-300 bg-white text-slate-600 hover:text-slate-900'
+          }`}
+          aria-label="Ubah tema"
+        >
+          {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        </button>
+      </header>
 
-      {/* Conditional Stage: Group Divider (35 Students) vs Custom Free Wheel */}
-      {appMode === 'group-divider' ? (
-        <main className="flex-1 w-full">
-          <GroupDivider darkMode={false} />
-        </main>
-      ) : (
-        /* Main Custom Wheel Workspace Layout */
-        <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-          {/* Left Stage: Wheel Area */}
-          <section
-            className="lg:col-span-7 xl:col-span-8 flex flex-col items-center justify-center rounded-2xl p-4 sm:p-6 border border-slate-300 bg-white shadow-sm relative overflow-hidden transition-colors min-h-[460px] lg:min-h-[600px]"
-          >
-            {/* Canvas Wheel Component */}
-            <Wheel
-              ref={customWheelRef}
-              items={items}
-              colors={currentTheme.colors}
-              spinDuration={settings.spinDuration}
-              isSpinning={isSpinning}
-              darkMode={false}
-              onSpinStart={handleSpinStart}
-              onSpinEnd={handleSpinEnd}
-            />
+      {/* Main Content: Only Three Things (Kotak Nama, Roda, Hasil) */}
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 pb-8 flex flex-col justify-center">
+        {/* ================================================================= */}
+        {/* 1. KOTAK NAMA (Before Mulai)                                      */}
+        {/* ================================================================= */}
+        {view === 'input' && (
+          <div className="w-full max-w-xl mx-auto flex flex-col gap-4">
+            <div className={`rounded-2xl border p-4 sm:p-6 shadow-sm flex flex-col gap-4 ${
+              darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300'
+            }`}>
+              {/* Textarea for pasting names */}
+              <textarea
+                value={rawText}
+                onChange={(e) => setRawText(e.target.value)}
+                rows={14}
+                placeholder="Tempel daftar nama di sini, satu nama per baris..."
+                className={`w-full p-3 rounded-xl border text-sm font-sans focus:outline-hidden focus:ring-2 focus:ring-blue-500 resize-none transition-colors ${
+                  darkMode
+                    ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-600'
+                    : 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400'
+                }`}
+                spellCheck={false}
+              />
 
-            {/* Quick Instruction with High-Contrast Text */}
-            <div className="mt-3.5 flex items-center gap-2 text-xs text-slate-700 font-bold">
-              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 bg-slate-200 rounded-md border border-slate-400 font-mono text-[11px] font-extrabold shadow-2xs">
-                SPASI
-              </span>
-              <span className="hidden sm:inline">atau klik roda untuk memutar</span>
-              <span className="sm:hidden font-extrabold">Ketuk roda untuk memutar</span>
+              {/* Group Count Input & Mulai Button */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                <div className="flex items-center gap-2.5">
+                  <label htmlFor="group-count" className="text-sm font-semibold select-none">
+                    Jumlah kelompok
+                  </label>
+                  <input
+                    id="group-count"
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={groupCountInput}
+                    onChange={(e) => setGroupCountInput(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    className={`w-16 px-2.5 py-2 rounded-xl border text-center font-bold text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 ${
+                      darkMode
+                        ? 'bg-slate-950 border-slate-800 text-white'
+                        : 'bg-slate-50 border-slate-300 text-slate-900'
+                    }`}
+                  />
+                </div>
+
+                <button
+                  onClick={handleStart}
+                  disabled={!rawText.trim()}
+                  className="w-full sm:w-auto px-7 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm shadow-sm active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                >
+                  Mulai
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ================================================================= */}
+        {/* 2 & 3. RODA DAN HASIL (After Mulai)                               */}
+        {/* ================================================================= */}
+        {view === 'spinner' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start w-full">
+            {/* Left: Roda & 4 Action Buttons */}
+            <div className="lg:col-span-6 xl:col-span-5 flex flex-col items-center gap-4">
+              <div className={`w-full rounded-2xl border p-4 sm:p-6 shadow-sm flex flex-col items-center justify-center ${
+                darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300'
+              }`}>
+                <Wheel
+                  ref={wheelRef}
+                  items={wheelItems}
+                  colors={wheelColors}
+                  spinDuration={isAutoSpinning ? 1.2 : 2.5}
+                  isSpinning={isSpinning}
+                  darkMode={darkMode}
+                  onSpinStart={handleSpinStart}
+                  onSpinEnd={handleSpinEnd}
+                />
+              </div>
+
+              {/* 4 Action Buttons: Putar, Otomatis, Salin, Ulang */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full">
+                {/* Putar */}
+                <button
+                  onClick={handleSingleSpin}
+                  disabled={isSpinning || isAutoSpinning || isCompleted || wheelItems.length === 0}
+                  className="min-h-[44px] px-3 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs shadow-xs active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer text-center"
+                >
+                  Putar
+                </button>
+
+                {/* Otomatis / Berhenti */}
+                <button
+                  onClick={handleToggleAutoSpin}
+                  disabled={isCompleted || (wheelItems.length === 0 && !isAutoSpinning)}
+                  className={`min-h-[44px] px-3 py-2.5 rounded-xl font-bold text-xs shadow-xs active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer text-center ${
+                    isAutoSpinning
+                      ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse'
+                      : darkMode
+                      ? 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700'
+                      : 'bg-slate-900 hover:bg-slate-800 text-white'
+                  }`}
+                >
+                  {isAutoSpinning ? 'Berhenti' : 'Otomatis'}
+                </button>
+
+                {/* Salin */}
+                <button
+                  onClick={handleCopyResults}
+                  className={`min-h-[44px] px-3 py-2.5 rounded-xl font-bold text-xs border shadow-xs active:scale-95 transition-all cursor-pointer text-center ${
+                    copied
+                      ? 'bg-emerald-600 text-white border-emerald-600'
+                      : darkMode
+                      ? 'bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-700'
+                      : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300'
+                  }`}
+                >
+                  {copied ? 'Tersalin!' : 'Salin'}
+                </button>
+
+                {/* Ulang */}
+                <button
+                  onClick={handleReset}
+                  className={`min-h-[44px] px-3 py-2.5 rounded-xl font-bold text-xs border shadow-xs active:scale-95 transition-all cursor-pointer text-center ${
+                    darkMode
+                      ? 'border-slate-800 hover:bg-rose-950/40 text-rose-400'
+                      : 'border-slate-300 hover:bg-rose-50 text-rose-600'
+                  }`}
+                >
+                  Ulang
+                </button>
+              </div>
             </div>
 
-            {/* Persistent Winner Banner Card (Ultra High Contrast in White Mode) */}
-            {history.length > 0 && !isSpinning && (
-              <div className="mt-4 w-full max-w-lg p-3.5 sm:p-4 rounded-2xl border-2 border-amber-400 bg-amber-50 shadow-sm flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-2 duration-150">
-                <div className="flex items-center gap-3 truncate">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 shadow-xs">
-                    <Trophy className="w-5 h-5 font-black" />
-                  </div>
-                  <div className="truncate">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded-md">
-                        Putaran #{history[0].round} • Pemenang Terakhir
-                      </span>
-                      <span className="text-[11px] text-slate-600 font-semibold">
-                        {history[0].timestamp}
-                      </span>
-                    </div>
-                    <div className="text-xl sm:text-2xl font-black text-slate-950 truncate mt-0.5">
-                      {history[0].name}
-                    </div>
-                  </div>
-                </div>
+            {/* Right / Bottom: Hasil (Daftar Kelompok) */}
+            <div className="lg:col-span-6 xl:col-span-7 flex flex-col gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {groups.map((group, idx) => {
+                  const isActive = idx === currentGroupIdx && !isCompleted
+                  const isFull = group.members.length >= group.capacity
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => setCurrentWinner(history[0].name)}
-                    className="px-3 py-1.5 text-xs font-bold rounded-lg border-2 border-slate-300 bg-white hover:bg-slate-100 text-slate-900 transition-colors cursor-pointer shadow-xs"
-                    title="Lihat modal perayaan pemenang"
-                  >
-                    Lihat
-                  </button>
-                  {settings.showRemoveButton && (
-                    <button
-                      onClick={() => handleRemoveWinner(history[0].name)}
-                      className="px-3 py-1.5 text-xs font-bold rounded-lg bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white transition-colors cursor-pointer shadow-xs"
-                      title="Hapus pemenang ini dari daftar roda"
+                  return (
+                    <div
+                      key={group.id}
+                      className={`rounded-2xl border p-4 transition-all shadow-xs ${
+                        isActive
+                          ? darkMode
+                            ? 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-950/20'
+                            : 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/40'
+                          : darkMode
+                          ? 'border-slate-800 bg-slate-900'
+                          : 'border-slate-300 bg-white'
+                      }`}
                     >
-                      Hapus
-                    </button>
-                  )}
-                </div>
+                      {/* Group Header */}
+                      <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200 dark:border-slate-800">
+                        <span className="font-bold text-sm text-slate-900 dark:text-white">
+                          {group.name}
+                        </span>
+                        <span className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-md ${
+                          isFull
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                            : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400'
+                        }`}>
+                          {group.members.length}/{group.capacity}
+                        </span>
+                      </div>
+
+                      {/* Members List (Clean names only, zero tags, zero numbers/categories) */}
+                      <div className="space-y-1.5 min-h-[90px]">
+                        {group.members.map((member, mIdx) => (
+                          <div
+                            key={mIdx}
+                            className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate py-0.5"
+                          >
+                            {member}
+                          </div>
+                        ))}
+
+                        {/* Empty slot placeholders */}
+                        {Array.from({ length: Math.max(0, group.capacity - group.members.length) }).map((_, eIdx) => (
+                          <div
+                            key={`empty-${eIdx}`}
+                            className={`text-xs truncate py-0.5 ${
+                              isActive && eIdx === 0
+                                ? 'text-blue-500 font-medium animate-pulse'
+                                : 'text-slate-300 dark:text-slate-700'
+                            }`}
+                          >
+                            {isActive && eIdx === 0 ? '...' : '—'}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-            )}
-          </section>
-
-          {/* Right Stage: Sidebar Tabs (Entri & Hasil) */}
-          <section className="lg:col-span-5 xl:col-span-4 h-full min-h-[460px] lg:min-h-[600px] flex flex-col">
-            <SidebarTabs
-              items={items}
-              history={history}
-              activeTab={sidebarTab}
-              disabled={isSpinning}
-              darkMode={false}
-              onTabChange={setSidebarTab}
-              onChangeItems={setItems}
-              onShuffle={handleShuffle}
-              onSort={handleSort}
-              onClearItems={handleClearItems}
-              onClearHistory={handleClearHistory}
-              onRemoveHistoryItem={handleRemoveHistoryItem}
-            />
-          </section>
-        </main>
-      )}
-
-      {/* Modals for Custom Wheel Mode */}
-      {appMode === 'custom-wheel' && (
-        <WinnerModal
-          winner={currentWinner}
-          round={history.length}
-          remainingCount={items.length}
-          winningMessage={settings.winningMessage}
-          confettiEnabled={settings.confettiEnabled}
-          showRemoveButton={settings.showRemoveButton}
-          darkMode={false}
-          onClose={() => setCurrentWinner(null)}
-          onRemoveWinner={handleRemoveWinner}
-          onSpinAgain={handleSpinAgain}
-        />
-      )}
-
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        settings={settings}
-        darkMode={false}
-        onUpdateSettings={(updated) => setSettings((prev) => ({ ...prev, ...updated, darkMode: false }))}
-        onClose={() => setIsSettingsOpen(false)}
-      />
+            </div>
+          </div>
+        )}
+      </main>
     </div>
   )
 }

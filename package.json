@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "verify": "tsx scripts/verify-rules.ts"
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",
@@ -26,6 +27,7 @@
     "@vitejs/plugin-react": "^6.1.2",
     "oxlint": "^1.88.0",
     "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
     "typescript": "~6.0.3",
     "vite": "^8.3.4",
     "vitest": "^5.0.5"

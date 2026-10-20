@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getSliceUnderPointer } from '../src/components/Wheel'
+import { getSliceUnderPointer } from '../src/utils/wheelMath'
 
 describe('Wheel Engine & Pointer Invariants', () => {
   it('handles safety edge cases without throwing or returning NaN', () => {

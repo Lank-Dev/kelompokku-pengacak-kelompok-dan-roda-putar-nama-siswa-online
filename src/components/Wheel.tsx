@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react'
 import { getSliceTextStyles } from '../utils/color'
+import { getSliceUnderPointer } from '../utils/wheelMath'
 
 export interface WheelHandle {
   spin: () => void
@@ -16,23 +17,6 @@ export interface WheelProps {
   onSpinEnd: (winner: string) => void
 }
 
-/**
- * Bulletproof pointer slice calculation.
- * Mathematically guaranteed to return a valid slice index in [0, total - 1].
- * Zero NaN, zero undefined, zero division-by-zero crashes.
- */
-function getSliceUnderPointer(rot: number, total: number): number {
-  if (!total || total <= 0 || !Number.isFinite(total)) return 0
-  if (!Number.isFinite(rot)) return 0
-
-  const twoPi = 2 * Math.PI
-  const sliceAngle = twoPi / total
-  const normalizedAngle = ((-rot % twoPi) + twoPi) % twoPi
-  const index = Math.floor(normalizedAngle / sliceAngle)
-
-  if (!Number.isFinite(index) || isNaN(index)) return 0
-  return ((index % total) + total) % total
-}
 
 /**
  * Auto-fits slice text with zero truncation, zero overlapping, and pristine legibility.
@@ -118,7 +102,6 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
 ) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const livePointerTextRef = useRef<HTMLSpanElement | null>(null)
 
   // Wheel animation & physics state
   const rotationRef = useRef<number>(0)
@@ -133,24 +116,6 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
   const targetWinnerRef = useRef<string>('')
 
   const [hoverCenter, setHoverCenter] = useState(false)
-  const [highlightedName, setHighlightedName] = useState<string>('')
-
-  // Sync highlighted slice name when items change or initially (only when wheel is idle)
-  useEffect(() => {
-    if (items.length > 0 && !isSpinningInternalRef.current) {
-      const idx = getSliceUnderPointer(rotationRef.current, items.length)
-      const name = items[idx] || ''
-      setHighlightedName(name)
-      if (livePointerTextRef.current) {
-        livePointerTextRef.current.textContent = name
-      }
-    } else if (items.length === 0) {
-      setHighlightedName('')
-      if (livePointerTextRef.current) {
-        livePointerTextRef.current.textContent = ''
-      }
-    }
-  }, [items])
 
   // Draw wheel function with guaranteed high-contrast rendering and DPR transform stability
   const drawWheel = useCallback(() => {
@@ -197,7 +162,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
       ctx.font = 'bold 15px system-ui, sans-serif'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText('Tambahkan nama peserta', cx, cy)
+      ctx.fillText('Selesai', cx, cy)
       return
     }
 
@@ -339,18 +304,8 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
-    if (isSpinningNow) {
-      ctx.font = `800 ${Math.max(11, Math.floor(hubRadius * 0.28))}px system-ui, sans-serif`
-      ctx.fillText('SPINNING', cx, cy)
-    } else {
-      ctx.font = `800 ${Math.max(12, Math.floor(hubRadius * 0.32))}px system-ui, sans-serif`
-      ctx.fillText('SPIN', cx, cy - (hubRadius > 40 ? 5 : 0))
-      if (hubRadius > 40) {
-        ctx.font = 'bold 8.5px system-ui, sans-serif'
-        ctx.fillStyle = darkMode ? '#94a3b8' : '#64748b'
-        ctx.fillText('CLICK TO SPIN', cx, cy + 9)
-      }
-    }
+    ctx.font = `800 ${Math.max(12, Math.floor(hubRadius * 0.32))}px system-ui, sans-serif`
+    ctx.fillText('PUTAR', cx, cy)
     ctx.restore()
 
     // 7. Right-side Pointer / Flapper (At 3 o'clock pointing into the wheel)
@@ -451,10 +406,6 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
       if (lastSliceIndexRef.current !== -1 && currentSlice !== lastSliceIndexRef.current) {
         const velocityMultiplier = Math.min(Math.abs(angularVelocity) / 0.05, 3.0)
         flapperDeflectionRef.current = -0.28 * Math.min(velocityMultiplier, 1.2)
-        const name = activeItems[currentSlice] || ''
-        if (livePointerTextRef.current) {
-          livePointerTextRef.current.textContent = name
-        }
       }
       lastSliceIndexRef.current = currentSlice
 
@@ -556,10 +507,6 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
         drawWheelRef.current()
 
         const finalWinner = targetWinnerRef.current || winner
-        if (livePointerTextRef.current) {
-          livePointerTextRef.current.textContent = finalWinner
-        }
-        setHighlightedName(finalWinner)
 
         try {
           onSpinEnd(finalWinner)
@@ -641,30 +588,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHoverCenter(false)}
         className="cursor-pointer transition-transform duration-150 active:scale-[0.99] touch-manipulation select-none"
-        title="Click to spin wheel (or press Spacebar)"
       />
-
-      {/* Live Pointer Indicator HUD */}
-      {items.length > 0 && (
-        <div
-          className={`mt-2.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border shadow-xs transition-all flex items-center gap-2 max-w-[85%] truncate ${
-            darkMode
-              ? 'bg-slate-900 border-slate-700 text-slate-100'
-              : 'bg-white border-slate-200 text-slate-900'
-          }`}
-        >
-          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0 ring-2 ring-red-400/30" />
-          <span className="text-[11px] text-slate-500 dark:text-slate-400 shrink-0">
-            Pointing at:
-          </span>
-          <span
-            ref={livePointerTextRef}
-            className="font-bold text-blue-600 dark:text-blue-400 truncate"
-          >
-            {highlightedName}
-          </span>
-        </div>
-      )}
     </div>
   )
 })

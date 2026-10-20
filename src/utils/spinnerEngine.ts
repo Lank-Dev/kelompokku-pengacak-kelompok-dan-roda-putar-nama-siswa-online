@@ -1,0 +1,297 @@
+/**
+ * Core Engine for Minimalist Group Spinner Wheel.
+ * Supports:
+ * 1. Clean name parsing with hidden prefix number stripping (e.g., "1. Adika Ramzi" -> "Adika Ramzi").
+ * 2. Silent secret mode detection (triggered when numbers 1, 2, 3 and Dzaky & Ibra exist).
+ * 3. Secret mode fair-split algorithm with strict separation of group 1 members.
+ * 4. Normal mode unbiased random split.
+ */
+
+export interface ParsedParticipant {
+  raw: string
+  name: string
+  groupNum: number | null
+}
+
+export interface GroupResult {
+  id: number
+  name: string
+  capacity: number
+  members: string[]
+}
+
+export interface EngineSetup {
+  isSecretMode: boolean
+  totalCount: number
+  groupCount: number
+  groups: GroupResult[]
+  // In secret mode: priority names for the initial groups
+  priorityNames: string[]
+  // In secret mode: remaining names for subsequent groups
+  remainingNames: string[]
+  // All clean names in list
+  allNames: string[]
+  // Secretly promoted person (if secret mode)
+  promotedPerson: string | null
+}
+
+/**
+ * Normalizes string for reliable comparison (case-insensitive, trims quotes and spaces)
+ */
+export function normalizeName(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/[’'`]/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * Parses raw multiline text into clean participant entries.
+ * Handles prefixes like "1. Name", "1 Name", "1 - Name", "1) Name", or just "Name".
+ */
+export function parseParticipants(rawText: string): ParsedParticipant[] {
+  const lines = rawText.split(/\r?\n/)
+  const result: ParsedParticipant[] = []
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+
+    // Regex checking optional leading number followed by punctuation or whitespace
+    const match = trimmed.match(/^(\d+)[.)\-:\s]+(.*)$/)
+    if (match) {
+      const num = parseInt(match[1], 10)
+      const clean = match[2].trim()
+      if (clean) {
+        result.push({
+          raw: trimmed,
+          name: clean,
+          groupNum: num,
+        })
+      }
+    } else {
+      result.push({
+        raw: trimmed,
+        name: trimmed,
+        groupNum: null,
+      })
+    }
+  }
+
+  return result
+}
+
+/**
+ * Checks if the secret mode conditions are met:
+ * 1. There are participants with groupNum 1, 2, and 3.
+ * 2. "Dzaky Almer Rafif" and "Ibra Muhammad" are in the list.
+ */
+export function checkSecretMode(participants: ParsedParticipant[]): boolean {
+  let hasNum1 = false
+  let hasNum2 = false
+  let hasNum3 = false
+  let hasDzaky = false
+  let hasIbra = false
+
+  for (const p of participants) {
+    if (p.groupNum === 1) hasNum1 = true
+    if (p.groupNum === 2) hasNum2 = true
+    if (p.groupNum === 3) hasNum3 = true
+
+    const norm = normalizeName(p.name)
+    if (norm === 'dzaky almer rafif') hasDzaky = true
+    if (norm === 'ibra muhammad') hasIbra = true
+  }
+
+  return hasNum1 && hasNum2 && hasNum3 && hasDzaky && hasIbra
+}
+
+/**
+ * Shuffles an array immutably using Fisher-Yates.
+ */
+export function shuffleArray<T>(arr: T[]): T[] {
+  const copy = [...arr]
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const temp = copy[i]
+    copy[i] = copy[j]
+    copy[j] = temp
+  }
+  return copy
+}
+
+/**
+ * Sets up the engine for either Secret Mode or Normal Mode.
+ */
+export function setupEngine(rawText: string, targetGroupCount: number): EngineSetup {
+  const participants = parseParticipants(rawText)
+  const totalCount = participants.length
+  const groupCount = Math.max(1, Math.min(20, targetGroupCount || 6))
+  const allNames = participants.map((p) => p.name)
+
+  const isSecretMode = checkSecretMode(participants)
+
+  if (!isSecretMode) {
+    // Normal Mode: standard balanced distribution
+    const baseCap = Math.floor(totalCount / groupCount)
+    const remainder = totalCount % groupCount
+
+    const groups: GroupResult[] = Array.from({ length: groupCount }, (_, i) => ({
+      id: i + 1,
+      name: `Kelompok ${i + 1}`,
+      capacity: i < remainder ? baseCap + 1 : baseCap,
+      members: [],
+    }))
+
+    return {
+      isSecretMode: false,
+      totalCount,
+      groupCount,
+      groups,
+      priorityNames: [],
+      remainingNames: shuffleArray(allNames),
+      allNames,
+      promotedPerson: null,
+    }
+  }
+
+  // =========================================================================
+  // SECRET MODE
+  // =========================================================================
+  const pool1 = participants.filter((p) => p.groupNum === 1).map((p) => p.name)
+
+  // Find promotion candidates
+  const dzakyCandidate = participants.find(
+    (p) => normalizeName(p.name) === 'dzaky almer rafif'
+  )
+  const ibraCandidate = participants.find(
+    (p) => normalizeName(p.name) === 'ibra muhammad'
+  )
+
+  // Silently choose one to promote
+  const promoteDzaky = Math.random() < 0.5
+  const promotedPerson = promoteDzaky
+    ? dzakyCandidate?.name || 'Dzaky Almer Rafif'
+    : ibraCandidate?.name || 'Ibra Muhammad'
+
+  const unchosenCandidate = promoteDzaky
+    ? ibraCandidate?.name || 'Ibra Muhammad'
+    : dzakyCandidate?.name || 'Dzaky Almer Rafif'
+
+  // Priority pool: All pool 1 members + the chosen promoted person
+  const priorityNames = shuffleArray([...pool1, promotedPerson])
+  const priorityCount = priorityNames.length // Typically 11 + 1 = 12
+
+  // Remaining pool: The unchosen candidate + remaining pool 2 + pool 3 + others
+  const remainingCandidates: string[] = []
+  if (unchosenCandidate) {
+    remainingCandidates.push(unchosenCandidate)
+  }
+
+  for (const p of participants) {
+    // Exclude pool 1 and both candidates (they are already handled)
+    if (p.groupNum === 1) continue
+    const norm = normalizeName(p.name)
+    if (norm === 'dzaky almer rafif' || norm === 'ibra muhammad') continue
+    remainingCandidates.push(p.name)
+  }
+
+  const remainingNames = shuffleArray(remainingCandidates)
+
+  // Compute capacities:
+  // For standard 35 students in 6 groups:
+  // Kelompok 1: 6, Kelompok 2: 6 (Exact sum 12 for priority pool)
+  // Kelompok 3: 6, Kelompok 4: 6, Kelompok 5: 6, Kelompok 6: 5 (Exact sum 23 for remaining)
+  let groups: GroupResult[] = []
+
+  if (totalCount === 35 && groupCount === 6) {
+    groups = [
+      { id: 1, name: 'Kelompok 1', capacity: 6, members: [] },
+      { id: 2, name: 'Kelompok 2', capacity: 6, members: [] },
+      { id: 3, name: 'Kelompok 3', capacity: 6, members: [] },
+      { id: 4, name: 'Kelompok 4', capacity: 6, members: [] },
+      { id: 5, name: 'Kelompok 5', capacity: 6, members: [] },
+      { id: 6, name: 'Kelompok 6', capacity: 5, members: [] },
+    ]
+  } else {
+    // Dynamic calculation:
+    // Determine how many groups are needed for priority pool
+    // Priority groups will solely hold the priorityCount people
+    const numPriorityGroups = Math.max(1, Math.min(groupCount - 1, Math.round(priorityCount / (totalCount / groupCount))))
+    const basePriorityCap = Math.floor(priorityCount / numPriorityGroups)
+    const remPriority = priorityCount % numPriorityGroups
+
+    const priorityCaps = Array.from({ length: numPriorityGroups }, (_, i) =>
+      i < remPriority ? basePriorityCap + 1 : basePriorityCap
+    )
+
+    const remainingGroupsCount = Math.max(1, groupCount - numPriorityGroups)
+    const remainingCount = remainingNames.length
+    const baseRemCap = Math.floor(remainingCount / remainingGroupsCount)
+    const remRem = remainingCount % remainingGroupsCount
+
+    const remainingCaps = Array.from({ length: remainingGroupsCount }, (_, i) =>
+      i < remRem ? baseRemCap + 1 : baseRemCap
+    )
+
+    const allCaps = [...priorityCaps, ...remainingCaps]
+
+    groups = allCaps.map((cap, i) => ({
+      id: i + 1,
+      name: `Kelompok ${i + 1}`,
+      capacity: Math.max(1, cap),
+      members: [],
+    }))
+  }
+
+  return {
+    isSecretMode: true,
+    totalCount,
+    groupCount,
+    groups,
+    priorityNames,
+    remainingNames,
+    allNames,
+    promotedPerson,
+  }
+}
+
+/**
+ * Default sample dataset (35 students from user prompt)
+ */
+export const DEFAULT_RAW_STUDENTS = `1. Adika Ramzi
+1. M. Gilank Putra Ramadhan
+1. Nayaka Nur Zaky
+1. Shalahuddin Yusuf Azka
+1. Aila Putri Noviyan
+1. Dirlha Hainnun Ningsih
+1. Hafizal Gustyo Pratama
+1. Neyna Hendriani Liu
+1. Syahrul Salam
+1. Muhammad Haikal
+1. Ardilla Putri Wulansari
+2. Daffa Putra Gemilang
+2. Muhammad Akbar Ar’rafa
+2. Alfino Fazrurachman
+2. Dzaky Almer Rafif
+2. Ibra Muhammad
+2. Pauziah Lestari
+2. Fahril Ilham
+2. Inayah Nur Azizah
+2. Rafiq Fadhil Fathin
+2. Zidane Adlyndra Assami
+2. Muhammad Zainal Abidin
+2. Raka Apriansyah
+3. Fatah Rezky Al Gyfari
+3. Kamal Al-Fathir Iskandar
+3. Nava Olivia
+3. Riyan Ade Geandra
+3. Ahmad Daniel Ghifari
+3. Dimas Wahyu Setiyawan
+3. Fatur Rahman Al-Ghozy
+3. Vani Oktaviani
+3. Muhammad Nur Asyifa
+3. Bayu Oktara
+3. Fahrizal Fery Utama
+3. Jamal Dwi Andika`

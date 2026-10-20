@@ -21,7 +21,6 @@ import {
   verify35DivisionInvariants,
   isStandard35Students,
   determineDividerMode,
-  createBalancedGroups,
 } from '../src/utils/groupEngine'
 
 // ANSI colors for clean terminal reporting
@@ -88,7 +87,7 @@ console.log(`${BOLD}2. VERIFIKASI TAHAP 1: HANYA KANDIDAT PROMOSI (DZAKY VS IBRA
   let errorCaught = false
   try {
     stepSpinEngine(state, 'Orang Asing')
-  } catch (err: any) {
+  } catch {
     errorCaught = true
   }
   assert(errorCaught, 'Engine wajib menolak dan melempar error jika ada nama asing dipaksa menang di Tahap 1')
@@ -141,7 +140,8 @@ console.log(`${BOLD}3. VERIFIKASI TAHAP 2: 12 ORANG (11 POOL 1 + 1 PROMOSI) MENG
   for (let i = 0; i < 6; i++) {
     state = stepSpinEngine(state)
   }
-  assert(groupB.members.length === 6, 'Kelompok B terisi tepat 6 orang')
+  const groupBFull = state.groups.find((g) => g.id === 'B')!
+  assert(groupBFull.members.length === 6, 'Kelompok B terisi tepat 6 orang')
   assert(state.stage === 'STAGE_3_GROUPS_CDEF', 'Setelah Kelompok A & B penuh (12 orang), otomatis masuk ke STAGE_3_GROUPS_CDEF')
 }
 console.log()
