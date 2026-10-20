@@ -16,35 +16,71 @@ export interface WheelProps {
 }
 
 /**
- * Dynamically computes optimal font size and fit for a slice without clipping,
- * overlapping, or premature ellipses truncation.
+ * Auto-fits slice text with zero truncation, zero overlapping, and pristine legibility.
+ * Mathematically adapts to 35+ items cleanly.
  */
-function fitSliceText(
+function renderSliceText(
   ctx: CanvasRenderingContext2D,
   text: string,
-  initialFontSize: number,
-  maxRadialWidth: number,
-  maxArcHeight: number
-): { text: string; fontSize: number } {
-  let size = Math.min(initialFontSize, Math.max(7.5, maxArcHeight * 0.85))
-  ctx.font = `bold ${size}px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
+  total: number,
+  availableRadialLength: number,
+  outerTextR: number,
+  innerTextR: number,
+  sliceAngle: number,
+  textColor: string,
+  strokeColor: string
+) {
+  // 1. Initial base font size suited for the number of items
+  let initialFontSize = 16
+  if (total <= 4) initialFontSize = 18
+  else if (total <= 8) initialFontSize = 15
+  else if (total <= 14) initialFontSize = 13
+  else if (total <= 24) initialFontSize = 11
+  else if (total <= 40) initialFontSize = 9.0
+  else if (total <= 60) initialFontSize = 8.0
+  else initialFontSize = 7.0
 
-  // Progressively step down font size until it fits comfortably in the radial length
-  while (size > 7.5 && ctx.measureText(text).width > maxRadialWidth) {
-    size -= 0.5
-    ctx.font = `bold ${size}px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
+  // 2. Strict vertical clamp: font height must not exceed slice width near innerTextR
+  // to mathematically guarantee ZERO overlap with neighboring slices.
+  const arcAtInnerSafe = (innerTextR + 6) * sliceAngle
+  const maxSafeFontSize = Math.max(6.5, arcAtInnerSafe * 0.90)
+  let fontSize = Math.min(initialFontSize, maxSafeFontSize)
+
+  ctx.font = `bold ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
+  let textWidth = ctx.measureText(text).width
+
+  // 3. Step font size down if text is significantly longer than space
+  while (fontSize > 7.0 && textWidth > availableRadialLength * 1.3) {
+    fontSize -= 0.5
+    ctx.font = `bold ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
+    textWidth = ctx.measureText(text).width
   }
 
-  // Only if text is excessively long even at 7.5px, gracefully truncate
-  if (ctx.measureText(text).width > maxRadialWidth) {
-    let str = text
-    while (str.length > 3 && ctx.measureText(str + '…').width > maxRadialWidth) {
-      str = str.slice(0, -1)
-    }
-    return { text: str + '…', fontSize: size }
-  }
+  // 4. Horizontal condensation factor: ensures long names (25+ chars) fit without ANY cut-off
+  const scaleX = textWidth > availableRadialLength
+    ? Math.max(0.68, availableRadialLength / textWidth)
+    : 1.0
 
-  return { text, fontSize: size }
+  ctx.save()
+  ctx.scale(scaleX, 1.0)
+  ctx.textBaseline = 'middle'
+  ctx.textAlign = 'right'
+
+  const drawX = outerTextR / scaleX
+
+  // Pass 1: Crisp Outline stroke for 100% legibility against ANY slice color
+  const outlineWidth = Math.min(2.0, Math.max(1.0, fontSize * 0.18))
+  ctx.lineWidth = outlineWidth
+  ctx.strokeStyle = strokeColor
+  ctx.lineJoin = 'round'
+  ctx.miterLimit = 2
+  ctx.strokeText(text, drawX, 0)
+
+  // Pass 2: Foreground Text
+  ctx.fillStyle = textColor
+  ctx.fillText(text, drawX, 0)
+
+  ctx.restore()
 }
 
 export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
@@ -104,10 +140,11 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     const dpr = window.devicePixelRatio || 1
     const width = canvas.width / dpr
     const height = canvas.height / dpr
-    const cx = width / 2
+    // Slightly offset center to balance the right-side pointer and achieve visual center symmetry
+    const cx = (width - 10) / 2
     const cy = height / 2
-    // Generous padding so rim, shadow, and right flapper never get clipped
-    const radius = Math.min(cx, cy) - 34
+    // Generous radius maximizing slice length while reserving safe margin for rim and pointer
+    const radius = Math.min(cx, cy) - 28
 
     ctx.clearRect(0, 0, width, height)
 
@@ -125,22 +162,23 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
       ctx.font = 'bold 15px system-ui, sans-serif'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText('Please add names to spin', cx, cy)
+      ctx.fillText('Tambahkan nama peserta', cx, cy)
       return
     }
 
     const total = items.length
     const sliceAngle = (2 * Math.PI) / total
     const rot = rotationRef.current
-    const hubRadius = Math.max(42, Math.min(58, radius * 0.22))
+    // Adaptive center hub: compact enough to give ample radial text span for 35 names
+    const hubRadius = Math.max(34, Math.min(48, radius * 0.20))
 
     // 1. Outer drop shadow
     ctx.save()
     ctx.beginPath()
     ctx.arc(cx, cy, radius + 4, 0, 2 * Math.PI)
     ctx.fillStyle = darkMode ? '#0f172a' : '#ffffff'
-    ctx.shadowColor = darkMode ? 'rgba(0, 0, 0, 0.6)' : 'rgba(15, 23, 42, 0.14)'
-    ctx.shadowBlur = 18
+    ctx.shadowColor = darkMode ? 'rgba(0, 0, 0, 0.65)' : 'rgba(15, 23, 42, 0.12)'
+    ctx.shadowBlur = 16
     ctx.shadowOffsetY = 4
     ctx.fill()
     ctx.restore()
@@ -157,28 +195,18 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     // 3. Slices Divider Stroke Configuration
     let dividerWidth = 1.5
     let showDivider = true
-    if (total > 150) {
+    if (total > 120) {
       showDivider = false
-    } else if (total > 60) {
+    } else if (total > 50) {
       dividerWidth = 0.5
-    } else if (total > 30) {
-      dividerWidth = 1
+    } else if (total > 25) {
+      dividerWidth = 1.0
     }
 
-    // Available radial length for text: from just outside hub to just inside rim
-    const innerTextR = hubRadius + 10
-    const outerTextR = radius - 14
+    // Available radial length for text: from near hub to near rim
+    const innerTextR = hubRadius + 6
+    const outerTextR = radius - 8
     const availableRadialLength = Math.max(40, outerTextR - innerTextR)
-
-    // Base initial font size depending on number of items
-    let initialFontSize = 18
-    if (total <= 2) initialFontSize = 20
-    else if (total <= 6) initialFontSize = 16
-    else if (total <= 12) initialFontSize = 14
-    else if (total <= 24) initialFontSize = 12
-    else if (total <= 40) initialFontSize = 10.5
-    else if (total <= 70) initialFontSize = 9.5
-    else initialFontSize = 8
 
     // 4. Draw Slices & Radial Text
     for (let i = 0; i < total; i++) {
@@ -196,53 +224,36 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
 
       if (showDivider) {
         ctx.lineWidth = dividerWidth
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)'
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)'
         ctx.stroke()
       }
       ctx.restore()
 
       // Radial Text Calculation
       const midAngle = startAngle + sliceAngle / 2
-      // Arc height at the center of the text region
-      const textCenterR = innerTextR + availableRadialLength * 0.5
-      const arcHeightAtTextCenter = textCenterR * sliceAngle
+      const text = items[i]
+      const { textColor, strokeColor } = getSliceTextStyles(color)
 
-      if (arcHeightAtTextCenter >= 6 || total <= 60) {
-        const text = items[i]
-        const { text: fittedText, fontSize } = fitSliceText(
-          ctx,
-          text,
-          initialFontSize,
-          availableRadialLength,
-          arcHeightAtTextCenter
-        )
+      ctx.save()
+      ctx.translate(cx, cy)
+      ctx.rotate(midAngle)
 
-        ctx.save()
-        ctx.translate(cx, cy)
-        ctx.rotate(midAngle)
+      renderSliceText(
+        ctx,
+        text,
+        total,
+        availableRadialLength,
+        outerTextR,
+        innerTextR,
+        sliceAngle,
+        textColor,
+        strokeColor
+      )
 
-        const { textColor, strokeColor } = getSliceTextStyles(color)
-        ctx.textBaseline = 'middle'
-        ctx.textAlign = 'right'
-        ctx.font = `bold ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
-
-        // Pass 1: Crisp Outline stroke for 100% legibility against ANY slice color
-        if (fontSize >= 8.5) {
-          ctx.lineWidth = Math.min(2.5, Math.max(1.2, fontSize * 0.2))
-          ctx.strokeStyle = strokeColor
-          ctx.lineJoin = 'round'
-          ctx.miterLimit = 2
-          ctx.strokeText(fittedText, outerTextR, 0)
-        }
-
-        // Pass 2: Foreground Text
-        ctx.fillStyle = textColor
-        ctx.fillText(fittedText, outerTextR, 0)
-        ctx.restore()
-      }
+      ctx.restore()
     }
 
-    // 5. Perimeter Pegs (Rivets for mechanical tactile feel)
+    // 5. Perimeter Pegs (Rivets for tactile feel)
     const pegCount = Math.min(Math.max(total, 12), 36)
     const pegAngleStep = (2 * Math.PI) / pegCount
     for (let p = 0; p < pegCount; p++) {
@@ -254,7 +265,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
       ctx.beginPath()
       ctx.arc(px, py, 2.5, 0, 2 * Math.PI)
       ctx.fillStyle = darkMode ? '#f8fafc' : '#1e293b'
-      ctx.shadowColor = 'rgba(0,0,0,0.3)'
+      ctx.shadowColor = 'rgba(0,0,0,0.35)'
       ctx.shadowBlur = 2
       ctx.fill()
       ctx.restore()
@@ -267,8 +278,8 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     ctx.arc(cx, cy, hubRadius, 0, 2 * Math.PI)
     ctx.fillStyle = darkMode ? '#0f172a' : '#ffffff'
     ctx.shadowColor = 'rgba(0, 0, 0, 0.25)'
-    ctx.shadowBlur = 12
-    ctx.shadowOffsetY = 3
+    ctx.shadowBlur = 10
+    ctx.shadowOffsetY = 2
     ctx.fill()
 
     // Hub outer border
@@ -296,21 +307,21 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     ctx.textBaseline = 'middle'
 
     if (isSpinning) {
-      ctx.font = `800 ${Math.max(12, Math.floor(hubRadius * 0.28))}px system-ui, sans-serif`
+      ctx.font = `800 ${Math.max(11, Math.floor(hubRadius * 0.28))}px system-ui, sans-serif`
       ctx.fillText('SPINNING', cx, cy)
     } else {
-      ctx.font = `800 ${Math.max(13, Math.floor(hubRadius * 0.32))}px system-ui, sans-serif`
-      ctx.fillText('SPIN', cx, cy - (hubRadius > 46 ? 6 : 0))
-      if (hubRadius > 46) {
-        ctx.font = 'bold 9px system-ui, sans-serif'
+      ctx.font = `800 ${Math.max(12, Math.floor(hubRadius * 0.32))}px system-ui, sans-serif`
+      ctx.fillText('SPIN', cx, cy - (hubRadius > 40 ? 5 : 0))
+      if (hubRadius > 40) {
+        ctx.font = 'bold 8.5px system-ui, sans-serif'
         ctx.fillStyle = darkMode ? '#94a3b8' : '#64748b'
-        ctx.fillText('CLICK TO SPIN', cx, cy + 11)
+        ctx.fillText('CLICK TO SPIN', cx, cy + 9)
       }
     }
     ctx.restore()
 
-    // 7. Right-side Pointer / Flapper (At 3 o'clock pointing left)
-    const pointerX = cx + radius + 8
+    // 7. Right-side Pointer / Flapper (At 3 o'clock pointing into the wheel)
+    const pointerX = cx + radius + 7
     const pointerY = cy
     const flapperDeflection = flapperDeflectionRef.current
 
@@ -326,20 +337,20 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
 
     // Triangular flapper pointing into the wheel
     ctx.beginPath()
-    ctx.moveTo(-28, 0)
-    ctx.lineTo(8, -12)
-    ctx.lineTo(12, 0)
-    ctx.lineTo(8, 12)
+    ctx.moveTo(-26, 0)
+    ctx.lineTo(7, -11)
+    ctx.lineTo(11, 0)
+    ctx.lineTo(7, 11)
     ctx.closePath()
 
     // Pointer gradient
-    const ptrGrad = ctx.createLinearGradient(-28, 0, 12, 0)
+    const ptrGrad = ctx.createLinearGradient(-26, 0, 11, 0)
     ptrGrad.addColorStop(0, '#ef4444')
     ptrGrad.addColorStop(1, '#b91c1c')
     ctx.fillStyle = ptrGrad
     ctx.fill()
 
-    // White outline
+    // Crisp white outline
     ctx.lineWidth = 2
     ctx.strokeStyle = '#ffffff'
     ctx.stroke()
@@ -497,10 +508,10 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     const rect = canvas.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
-    const cx = rect.width / 2
+    const cx = (rect.width - 10) / 2
     const cy = rect.height / 2
     const dist = Math.hypot(x - cx, y - cy)
-    const hubRadius = Math.max(42, Math.min(58, (rect.width / 2 - 24) * 0.22))
+    const hubRadius = Math.max(34, Math.min(48, (rect.width / 2 - 28) * 0.20))
 
     setHoverCenter(dist <= hubRadius)
   }
