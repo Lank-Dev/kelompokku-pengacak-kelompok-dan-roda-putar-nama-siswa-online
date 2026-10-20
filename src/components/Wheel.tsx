@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react'
-import { getSliceTextStyles, truncateText } from '../utils/color'
+import { getSliceTextStyles } from '../utils/color'
 
 export interface WheelHandle {
   spin: () => void
@@ -13,6 +13,38 @@ export interface WheelProps {
   darkMode: boolean
   onSpinStart: () => void
   onSpinEnd: (winner: string) => void
+}
+
+/**
+ * Dynamically computes optimal font size and fit for a slice without clipping,
+ * overlapping, or premature ellipses truncation.
+ */
+function fitSliceText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  initialFontSize: number,
+  maxRadialWidth: number,
+  maxArcHeight: number
+): { text: string; fontSize: number } {
+  let size = Math.min(initialFontSize, Math.max(7.5, maxArcHeight * 0.85))
+  ctx.font = `bold ${size}px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
+
+  // Progressively step down font size until it fits comfortably in the radial length
+  while (size > 7.5 && ctx.measureText(text).width > maxRadialWidth) {
+    size -= 0.5
+    ctx.font = `bold ${size}px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
+  }
+
+  // Only if text is excessively long even at 7.5px, gracefully truncate
+  if (ctx.measureText(text).width > maxRadialWidth) {
+    let str = text
+    while (str.length > 3 && ctx.measureText(str + '…').width > maxRadialWidth) {
+      str = str.slice(0, -1)
+    }
+    return { text: str + '…', fontSize: size }
+  }
+
+  return { text, fontSize: size }
 }
 
 export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
@@ -41,7 +73,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
   const [hoverCenter, setHoverCenter] = useState(false)
   const [highlightedName, setHighlightedName] = useState<string>('')
 
-  // Calculate current slice under pointer
+  // Calculate current slice under pointer (at 3 o'clock / angle 0)
   const getSliceUnderPointer = useCallback(
     (rot: number, total: number): number => {
       if (total === 0) return 0
@@ -75,7 +107,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     const cx = width / 2
     const cy = height / 2
     // Generous padding so rim, shadow, and right flapper never get clipped
-    const radius = Math.min(cx, cy) - 36
+    const radius = Math.min(cx, cy) - 34
 
     ctx.clearRect(0, 0, width, height)
 
@@ -85,55 +117,70 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
       ctx.arc(cx, cy, radius, 0, 2 * Math.PI)
       ctx.fillStyle = darkMode ? '#1e293b' : '#f8fafc'
       ctx.fill()
-      ctx.lineWidth = 3
-      ctx.strokeStyle = darkMode ? '#475569' : '#94a3b8'
+      ctx.lineWidth = 2
+      ctx.strokeStyle = darkMode ? '#475569' : '#cbd5e1'
       ctx.stroke()
 
-      ctx.fillStyle = darkMode ? '#f1f5f9' : '#1e293b'
-      ctx.font = 'bold 16px system-ui, sans-serif'
+      ctx.fillStyle = darkMode ? '#f1f5f9' : '#334155'
+      ctx.font = 'bold 15px system-ui, sans-serif'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText('Tambahkan nama terlebih dahulu', cx, cy)
+      ctx.fillText('Please add names to spin', cx, cy)
       return
     }
 
     const total = items.length
     const sliceAngle = (2 * Math.PI) / total
     const rot = rotationRef.current
-    const arcLengthAtRim = radius * sliceAngle
+    const hubRadius = Math.max(42, Math.min(58, radius * 0.22))
 
-    // 1. Draw outer shadow & clean circular rim
+    // 1. Outer drop shadow
     ctx.save()
     ctx.beginPath()
-    ctx.arc(cx, cy, radius + 8, 0, 2 * Math.PI)
+    ctx.arc(cx, cy, radius + 4, 0, 2 * Math.PI)
     ctx.fillStyle = darkMode ? '#0f172a' : '#ffffff'
-    ctx.shadowColor = darkMode ? 'rgba(0, 0, 0, 0.75)' : 'rgba(15, 23, 42, 0.2)'
-    ctx.shadowBlur = 22
-    ctx.shadowOffsetY = 6
+    ctx.shadowColor = darkMode ? 'rgba(0, 0, 0, 0.6)' : 'rgba(15, 23, 42, 0.14)'
+    ctx.shadowBlur = 18
+    ctx.shadowOffsetY = 4
     ctx.fill()
     ctx.restore()
 
-    // Outer border ring with high contrast
+    // 2. Outer rim border
     ctx.save()
     ctx.beginPath()
-    ctx.arc(cx, cy, radius + 6, 0, 2 * Math.PI)
-    ctx.lineWidth = 7
-    ctx.strokeStyle = darkMode ? '#334155' : '#cbd5e1'
+    ctx.arc(cx, cy, radius + 4, 0, 2 * Math.PI)
+    ctx.lineWidth = 5
+    ctx.strokeStyle = darkMode ? '#334155' : '#e2e8f0'
     ctx.stroke()
     ctx.restore()
 
-    // 2. Divider stroke width configuration
-    let dividerWidth = 2
+    // 3. Slices Divider Stroke Configuration
+    let dividerWidth = 1.5
     let showDivider = true
-    if (total > 200) {
+    if (total > 150) {
       showDivider = false
-    } else if (total > 80) {
+    } else if (total > 60) {
       dividerWidth = 0.5
-    } else if (total > 40) {
+    } else if (total > 30) {
       dividerWidth = 1
     }
 
-    // 3. Draw Slices
+    // Available radial length for text: from just outside hub to just inside rim
+    const innerTextR = hubRadius + 10
+    const outerTextR = radius - 14
+    const availableRadialLength = Math.max(40, outerTextR - innerTextR)
+
+    // Base initial font size depending on number of items
+    let initialFontSize = 18
+    if (total <= 2) initialFontSize = 20
+    else if (total <= 6) initialFontSize = 16
+    else if (total <= 12) initialFontSize = 14
+    else if (total <= 24) initialFontSize = 12
+    else if (total <= 40) initialFontSize = 10.5
+    else if (total <= 70) initialFontSize = 9.5
+    else initialFontSize = 8
+
+    // 4. Draw Slices & Radial Text
     for (let i = 0; i < total; i++) {
       const startAngle = rot + i * sliceAngle
       const endAngle = startAngle + sliceAngle
@@ -149,20 +196,26 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
 
       if (showDivider) {
         ctx.lineWidth = dividerWidth
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)'
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)'
         ctx.stroke()
       }
       ctx.restore()
 
-      // 4. Draw Radial Text with Dual-Pass Outline Contrast
-      const shouldDrawText =
-        total <= 120 ||
-        (total <= 200 && arcLengthAtRim >= 7) ||
-        (total > 200 && i % Math.ceil(total / 100) === 0)
+      // Radial Text Calculation
+      const midAngle = startAngle + sliceAngle / 2
+      // Arc height at the center of the text region
+      const textCenterR = innerTextR + availableRadialLength * 0.5
+      const arcHeightAtTextCenter = textCenterR * sliceAngle
 
-      if (shouldDrawText && arcLengthAtRim >= 6) {
+      if (arcHeightAtTextCenter >= 6 || total <= 60) {
         const text = items[i]
-        const midAngle = startAngle + sliceAngle / 2
+        const { text: fittedText, fontSize } = fitSliceText(
+          ctx,
+          text,
+          initialFontSize,
+          availableRadialLength,
+          arcHeightAtTextCenter
+        )
 
         ctx.save()
         ctx.translate(cx, cy)
@@ -171,51 +224,35 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
         const { textColor, strokeColor } = getSliceTextStyles(color)
         ctx.textBaseline = 'middle'
         ctx.textAlign = 'right'
+        ctx.font = `bold ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
 
-        // Dynamic font size computation
-        let fontSize = Math.min(
-          22,
-          Math.max(8.5, Math.floor(arcLengthAtRim * 0.72))
-        )
-        if (total <= 4) fontSize = 22
-        else if (total <= 8) fontSize = 18
-        else if (total <= 14) fontSize = 15
-        else if (total <= 24) fontSize = 12.5
-        else if (total <= 36) fontSize = 11
-        else if (total <= 60) fontSize = 10
-        else fontSize = 8.5
-
-        ctx.font = `bold ${fontSize}px Tahoma, Verdana, Arial, sans-serif`
-        const maxTextWidth = radius - (radius * 0.18 + 18)
-        const fittedText = truncateText(ctx, text, maxTextWidth)
-
-        // Pass 1: Crisp Outline stroke for 100% legibility against ANY background
-        if (fontSize >= 9.5) {
-          ctx.lineWidth = Math.min(3, Math.max(1.5, fontSize * 0.22))
+        // Pass 1: Crisp Outline stroke for 100% legibility against ANY slice color
+        if (fontSize >= 8.5) {
+          ctx.lineWidth = Math.min(2.5, Math.max(1.2, fontSize * 0.2))
           ctx.strokeStyle = strokeColor
           ctx.lineJoin = 'round'
           ctx.miterLimit = 2
-          ctx.strokeText(fittedText, radius - 16, 0)
+          ctx.strokeText(fittedText, outerTextR, 0)
         }
 
         // Pass 2: Foreground Text
         ctx.fillStyle = textColor
-        ctx.fillText(fittedText, radius - 16, 0)
+        ctx.fillText(fittedText, outerTextR, 0)
         ctx.restore()
       }
     }
 
-    // 5. Perimeter Pegs (Rivets for tactile mechanical feel)
+    // 5. Perimeter Pegs (Rivets for mechanical tactile feel)
     const pegCount = Math.min(Math.max(total, 12), 36)
     const pegAngleStep = (2 * Math.PI) / pegCount
     for (let p = 0; p < pegCount; p++) {
       const pAngle = rot + p * pegAngleStep
-      const px = cx + Math.cos(pAngle) * (radius + 2)
-      const py = cy + Math.sin(pAngle) * (radius + 2)
+      const px = cx + Math.cos(pAngle) * (radius + 1)
+      const py = cy + Math.sin(pAngle) * (radius + 1)
 
       ctx.save()
       ctx.beginPath()
-      ctx.arc(px, py, 3, 0, 2 * Math.PI)
+      ctx.arc(px, py, 2.5, 0, 2 * Math.PI)
       ctx.fillStyle = darkMode ? '#f8fafc' : '#1e293b'
       ctx.shadowColor = 'rgba(0,0,0,0.3)'
       ctx.shadowBlur = 2
@@ -225,58 +262,55 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
 
     // 6. Center Hub with High-Contrast Finish
     ctx.save()
-    const hubRadius = Math.max(46, Math.min(62, radius * 0.22))
-
     // Hub shadow
     ctx.beginPath()
     ctx.arc(cx, cy, hubRadius, 0, 2 * Math.PI)
     ctx.fillStyle = darkMode ? '#0f172a' : '#ffffff'
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.35)'
-    ctx.shadowBlur = 14
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.25)'
+    ctx.shadowBlur = 12
     ctx.shadowOffsetY = 3
     ctx.fill()
 
-    // Hub outer contrast border
+    // Hub outer border
     ctx.beginPath()
     ctx.arc(cx, cy, hubRadius, 0, 2 * Math.PI)
-    ctx.strokeStyle =
-      hoverCenter && !isSpinning ? '#2563eb' : darkMode ? '#60a5fa' : '#1e293b'
-    ctx.lineWidth = 4
+    ctx.strokeStyle = hoverCenter && !isSpinning ? '#2563eb' : darkMode ? '#60a5fa' : '#334155'
+    ctx.lineWidth = 3.5
     ctx.stroke()
 
-    // Hub inner circle face
+    // Hub face
     ctx.beginPath()
-    ctx.arc(cx, cy, hubRadius - 4, 0, 2 * Math.PI)
+    ctx.arc(cx, cy, hubRadius - 3.5, 0, 2 * Math.PI)
     ctx.fillStyle = darkMode
       ? hoverCenter && !isSpinning
         ? '#1e3a8a'
-        : '#0f172a'
+        : '#1e293b'
       : hoverCenter && !isSpinning
       ? '#eff6ff'
       : '#ffffff'
     ctx.fill()
 
-    // Center button text with maximum contrast
-    ctx.fillStyle = hoverCenter && !isSpinning ? '#1d4ed8' : darkMode ? '#ffffff' : '#0f172a'
+    // Center button text
+    ctx.fillStyle = hoverCenter && !isSpinning ? '#2563eb' : darkMode ? '#ffffff' : '#0f172a'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
     if (isSpinning) {
-      ctx.font = `900 ${Math.max(12, Math.floor(hubRadius * 0.28))}px system-ui, sans-serif`
-      ctx.fillText('PUTAR...', cx, cy)
+      ctx.font = `800 ${Math.max(12, Math.floor(hubRadius * 0.28))}px system-ui, sans-serif`
+      ctx.fillText('SPINNING', cx, cy)
     } else {
-      ctx.font = `900 ${Math.max(13, Math.floor(hubRadius * 0.32))}px system-ui, sans-serif`
-      ctx.fillText('PUTAR', cx, cy - (hubRadius > 50 ? 6 : 0))
-      if (hubRadius > 50) {
-        ctx.font = 'bold 10px system-ui, sans-serif'
-        ctx.fillStyle = darkMode ? '#94a3b8' : '#475569'
-        ctx.fillText('KLIK SAYA', cx, cy + 12)
+      ctx.font = `800 ${Math.max(13, Math.floor(hubRadius * 0.32))}px system-ui, sans-serif`
+      ctx.fillText('SPIN', cx, cy - (hubRadius > 46 ? 6 : 0))
+      if (hubRadius > 46) {
+        ctx.font = 'bold 9px system-ui, sans-serif'
+        ctx.fillStyle = darkMode ? '#94a3b8' : '#64748b'
+        ctx.fillText('CLICK TO SPIN', cx, cy + 11)
       }
     }
     ctx.restore()
 
-    // 7. Right-side Pointer / Flapper (High Contrast Crimson Red with White Rim)
-    const pointerX = cx + radius + 10
+    // 7. Right-side Pointer / Flapper (At 3 o'clock pointing left)
+    const pointerX = cx + radius + 8
     const pointerY = cy
     const flapperDeflection = flapperDeflectionRef.current
 
@@ -284,36 +318,36 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     ctx.translate(pointerX, pointerY)
     ctx.rotate(flapperDeflection)
 
-    // Deep shadow for pointer
-    ctx.shadowColor = 'rgba(0,0,0,0.5)'
+    // Shadow
+    ctx.shadowColor = 'rgba(0,0,0,0.35)'
     ctx.shadowBlur = 8
     ctx.shadowOffsetX = -2
     ctx.shadowOffsetY = 2
 
-    // Triangular flapper pointing left
+    // Triangular flapper pointing into the wheel
     ctx.beginPath()
-    ctx.moveTo(-30, 0)
-    ctx.lineTo(8, -13)
-    ctx.lineTo(14, 0)
-    ctx.lineTo(8, 13)
+    ctx.moveTo(-28, 0)
+    ctx.lineTo(8, -12)
+    ctx.lineTo(12, 0)
+    ctx.lineTo(8, 12)
     ctx.closePath()
 
-    // High contrast gradient
-    const ptrGrad = ctx.createLinearGradient(-30, 0, 14, 0)
-    ptrGrad.addColorStop(0, '#dc2626') // Vivid Red
-    ptrGrad.addColorStop(1, '#991b1b') // Deep Crimson
+    // Pointer gradient
+    const ptrGrad = ctx.createLinearGradient(-28, 0, 12, 0)
+    ptrGrad.addColorStop(0, '#ef4444')
+    ptrGrad.addColorStop(1, '#b91c1c')
     ctx.fillStyle = ptrGrad
     ctx.fill()
 
-    // 2.5px pure white border for extreme contrast against any wedge
-    ctx.lineWidth = 2.5
+    // White outline
+    ctx.lineWidth = 2
     ctx.strokeStyle = '#ffffff'
     ctx.stroke()
 
-    // Pivot pin (Gold/Metallic)
+    // Pivot pin
     ctx.beginPath()
-    ctx.arc(7, 0, 3.5, 0, 2 * Math.PI)
-    ctx.fillStyle = '#fbbf24'
+    ctx.arc(6, 0, 3, 0, 2 * Math.PI)
+    ctx.fillStyle = '#f59e0b'
     ctx.fill()
     ctx.lineWidth = 1
     ctx.strokeStyle = '#ffffff'
@@ -330,7 +364,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
 
       const clientW = container.clientWidth || 360
       const clientH = container.clientHeight > 100 ? container.clientHeight : clientW
-      const size = Math.max(260, Math.min(clientW, clientH, 520))
+      const size = Math.max(280, Math.min(clientW, clientH, 540))
       const dpr = window.devicePixelRatio || 1
 
       canvas.width = size * dpr
@@ -363,7 +397,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
 
       if (lastSliceIndexRef.current !== -1 && currentSlice !== lastSliceIndexRef.current) {
         const velocityMultiplier = Math.min(angularVelocity / 0.05, 3.0)
-        flapperDeflectionRef.current = -0.32 * Math.min(velocityMultiplier, 1.2)
+        flapperDeflectionRef.current = -0.28 * Math.min(velocityMultiplier, 1.2)
         setHighlightedName(items[currentSlice] || '')
       }
       lastSliceIndexRef.current = currentSlice
@@ -408,6 +442,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
       const elapsed = now - startTime
       const progress = Math.min(elapsed / durationMs, 1)
 
+      // Quintic ease-out for super smooth realistic deceleration
       const eased = 1 - Math.pow(1 - progress, 5)
       const currentAngle = startRot + totalDelta * eased
       rotationRef.current = currentAngle
@@ -465,7 +500,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     const cx = rect.width / 2
     const cy = rect.height / 2
     const dist = Math.hypot(x - cx, y - cy)
-    const hubRadius = Math.max(46, Math.min(62, (rect.width / 2 - 24) * 0.22))
+    const hubRadius = Math.max(42, Math.min(58, (rect.width / 2 - 24) * 0.22))
 
     setHoverCenter(dist <= hubRadius)
   }
@@ -481,31 +516,31 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
   return (
     <div
       ref={containerRef}
-      className="relative flex flex-col items-center justify-center w-full max-w-[480px] aspect-square p-2 mx-auto"
+      className="relative flex flex-col items-center justify-center w-full max-w-[500px] aspect-square p-2 mx-auto"
     >
       <canvas
         ref={canvasRef}
         onClick={handleCanvasClick}
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHoverCenter(false)}
-        className="cursor-pointer transition-transform duration-200 active:scale-[0.99] touch-manipulation select-none"
-        title="Klik untuk memutar roda! (Atau tekan Spasi)"
+        className="cursor-pointer transition-transform duration-150 active:scale-[0.99] touch-manipulation select-none"
+        title="Click to spin wheel (or press Spacebar)"
       />
 
-      {/* Live Pointer Indicator HUD with High-Contrast Styling */}
+      {/* Live Pointer Indicator HUD */}
       {items.length > 0 && highlightedName && (
         <div
-          className={`mt-2.5 px-3.5 py-1.5 rounded-full text-xs font-bold border shadow-sm transition-all flex items-center gap-2 max-w-[85%] truncate ${
+          className={`mt-2.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border shadow-xs transition-all flex items-center gap-2 max-w-[85%] truncate ${
             darkMode
-              ? 'bg-slate-900 border-slate-700 text-slate-100 shadow-black/40'
-              : 'bg-white border-slate-300 text-slate-900 shadow-slate-200'
+              ? 'bg-slate-900 border-slate-700 text-slate-100'
+              : 'bg-white border-slate-200 text-slate-900'
           }`}
         >
-          <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse shrink-0 ring-2 ring-red-400/30" />
-          <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold shrink-0">
-            Menunjuk:
+          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0 ring-2 ring-red-400/30" />
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 shrink-0">
+            Pointing at:
           </span>
-          <span className="font-extrabold text-blue-700 dark:text-blue-400 truncate">
+          <span className="font-bold text-blue-600 dark:text-blue-400 truncate">
             {highlightedName}
           </span>
         </div>

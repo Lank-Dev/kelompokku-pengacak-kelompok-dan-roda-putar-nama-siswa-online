@@ -1,6 +1,6 @@
-// Master Data Peserta untuk Pembagi 6 Kelompok (35 Peserta)
+// Master Data & Configuration for Group Divider
 
-export const POOL_1: string[] = [
+export const DEFAULT_STUDENTS: string[] = [
   'Adika Ramzi',
   'M. Gilank Putra Ramadhan',
   'Nayaka Nur Zaky',
@@ -12,9 +12,6 @@ export const POOL_1: string[] = [
   'Syahrul Salam',
   'Muhammad Haikal',
   'Ardilla Putri Wulansari',
-] // 11 orang
-
-export const POOL_2: string[] = [
   'Daffa Putra Gemilang',
   'Muhammad Akbar Ar’rafa',
   'Alfino Fazrurachman',
@@ -27,9 +24,6 @@ export const POOL_2: string[] = [
   'Zidane Adlyndra Assami',
   'Muhammad Zainal Abidin',
   'Raka Apriansyah',
-] // 12 orang
-
-export const POOL_3: string[] = [
   'Fatah Rezky Al Gyfari',
   'Kamal Al-Fathir Iskandar',
   'Nava Olivia',
@@ -42,30 +36,58 @@ export const POOL_3: string[] = [
   'Bayu Oktara',
   'Fahrizal Fery Utama',
   'Jamal Dwi Andika',
-] // 12 orang
-
-export const PROMOTION_CANDIDATES: string[] = ['Dzaky Almer Rafif', 'Ibra Muhammad']
+]
 
 export interface GroupMember {
   name: string
-  originalPool: 1 | 2 | 3
-  isPromoted?: boolean
   timestamp: string
 }
 
 export interface GroupData {
-  id: 'A' | 'B' | 'C' | 'D' | 'E' | 'F'
+  id: string
   name: string
   capacity: number
   color: string
   members: GroupMember[]
 }
 
-export const INITIAL_GROUPS: GroupData[] = [
-  { id: 'A', name: 'Kelompok A', capacity: 6, color: '#EA4335', members: [] },
-  { id: 'B', name: 'Kelompok B', capacity: 6, color: '#FBBC05', members: [] },
-  { id: 'C', name: 'Kelompok C', capacity: 6, color: '#34A853', members: [] },
-  { id: 'D', name: 'Kelompok D', capacity: 6, color: '#00BCD4', members: [] },
-  { id: 'E', name: 'Kelompok E', capacity: 6, color: '#4285F4', members: [] },
-  { id: 'F', name: 'Kelompok F', capacity: 5, color: '#9C27B0', members: [] },
+// Curated Anti-Slop Palette: Professional, high-contrast, distinct
+export const GROUP_PALETTE = [
+  { color: '#DC2626', name: 'Ruby' },
+  { color: '#D97706', name: 'Amber' },
+  { color: '#059669', name: 'Emerald' },
+  { color: '#0891B2', name: 'Teal' },
+  { color: '#2563EB', name: 'Blue' },
+  { color: '#7C3AED', name: 'Violet' },
+  { color: '#DB2777', name: 'Rose' },
+  { color: '#EA580C', name: 'Orange' },
+  { color: '#4F46E5', name: 'Indigo' },
+  { color: '#0284C7', name: 'Sky' },
 ]
+
+const GROUP_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
+
+/**
+ * Creates balanced groups dynamically for any group count between 1 and 10.
+ * For example, 35 students into 6 groups yields capacities of [6, 6, 6, 6, 6, 5].
+ */
+export function createBalancedGroups(groupCount: number, totalStudents: number): GroupData[] {
+  const count = Math.max(1, Math.min(10, groupCount))
+  const safeTotal = Math.max(1, totalStudents)
+  const baseCapacity = Math.floor(safeTotal / count)
+  const remainder = safeTotal % count
+
+  return Array.from({ length: count }, (_, i) => {
+    const capacity = i < remainder ? baseCapacity + 1 : baseCapacity
+    const label = GROUP_LABELS[i] || `${i + 1}`
+    const palette = GROUP_PALETTE[i % GROUP_PALETTE.length]
+
+    return {
+      id: label,
+      name: `Group ${label}`,
+      capacity: Math.max(1, capacity),
+      color: palette.color,
+      members: [],
+    }
+  })
+}

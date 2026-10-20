@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import {
-  Sliders,
   Maximize2,
   Minimize2,
   Sun,
@@ -22,7 +21,6 @@ export const Header: React.FC<HeaderProps> = ({
   activeMode,
   onSelectMode,
   onToggleDarkMode,
-  onOpenSettings,
 }) => {
   const [isFullscreen, setIsFullscreen] = useState(false)
 
@@ -43,88 +41,69 @@ export const Header: React.FC<HeaderProps> = ({
   }
 
   return (
-    <header className="w-full bg-gradient-to-r from-[#1e3a8a] via-[#2563eb] to-[#1e3a8a] border-b-2 border-[#172554] text-white sticky top-0 z-30 px-3 py-2 sm:px-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_2px_4px_rgba(0,0,0,0.15)] font-sans">
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-2.5">
-        {/* Brand / Logo (Classic Web 2.0 Badge) */}
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-xs overflow-hidden shadow-xs border-2 border-white/80 bg-white flex items-center justify-center shrink-0">
-            <div className="w-full h-full bg-conic from-blue-600 via-red-600 via-yellow-500 via-green-600 to-blue-600" />
+    <header className="w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 px-4 py-2.5 sm:px-6 transition-colors shadow-xs">
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+        {/* Brand / Logo */}
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg overflow-hidden shadow-xs border border-slate-200 dark:border-slate-700 bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shrink-0">
+            <span className="text-white font-black text-sm tracking-tighter">KN</span>
           </div>
 
           <div>
-            <div className="flex items-center gap-1.5">
-              <h1 className="text-sm sm:text-base font-extrabold tracking-tight text-white drop-shadow-xs">
-                KocokNama
-              </h1>
-              <span className="text-[9px] font-black px-1.5 py-0.2 rounded-xs bg-[#fef08a] text-[#713f12] border border-[#facc15] shadow-2xs">
-                v2005
-              </span>
-            </div>
-            <p className="hidden md:block text-[10px] text-blue-100 font-medium -mt-0.5">
-              Sistem Spinner & Pembagian 35 Peserta Kelompok
+            <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white leading-none">
+              KocokNama
+            </h1>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+              Random Wheel & Group Divider
             </p>
           </div>
         </div>
 
-        {/* Center Mode Switcher Tabs (Classic Beveled Tabs) */}
-        <div className="flex items-center p-0.5 rounded-xs border border-blue-900/60 bg-blue-950/40 text-xs font-bold shadow-inner">
+        {/* Center Mode Switcher Tabs */}
+        <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-xs font-semibold shadow-inner">
           <button
             onClick={() => onSelectMode('group-divider')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-xs transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
               activeMode === 'group-divider'
-                ? 'bg-white text-blue-900 font-black shadow-xs'
-                : 'text-blue-100 hover:text-white hover:bg-white/10'
+                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 font-bold shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">6 Kelompok (35 Peserta)</span>
-            <span className="sm:hidden">Kelompok</span>
+            <span>Groups</span>
           </button>
 
           <button
             onClick={() => onSelectMode('custom-wheel')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-xs transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
               activeMode === 'custom-wheel'
-                ? 'bg-white text-blue-900 font-black shadow-xs'
-                : 'text-blue-100 hover:text-white hover:bg-white/10'
+                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 font-bold shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <Compass className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Roda Bebas</span>
-            <span className="sm:hidden">Bebas</span>
+            <span>Free Wheel</span>
           </button>
         </div>
 
-        {/* Toolbar Buttons */}
-        <div className="flex items-center gap-1.5">
-          {/* Customize / Settings Button (Only in custom-wheel mode) */}
-          {activeMode === 'custom-wheel' && (
-            <button
-              onClick={onOpenSettings}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-xs bg-white/10 hover:bg-white/20 active:translate-y-0.5 border border-white/30 text-white font-bold text-xs shadow-xs cursor-pointer"
-              title="Kustomisasi Roda"
-            >
-              <Sliders className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Opsi</span>
-            </button>
-          )}
-
+        {/* Right Toolbar */}
+        <div className="flex items-center gap-2">
           {/* Dark / Light Mode Toggle */}
           <button
             onClick={onToggleDarkMode}
-            className="p-1.5 rounded-xs bg-white/10 hover:bg-white/20 active:translate-y-0.5 border border-white/30 text-white shadow-xs cursor-pointer"
-            title={darkMode ? 'Beralih ke Mode Terang' : 'Beralih ke Mode Gelap'}
+            className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
+            title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           >
-            {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-300" /> : <Moon className="w-3.5 h-3.5 text-blue-100" />}
+            {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
           </button>
 
-          {/* Fullscreen Button */}
+          {/* Fullscreen Toggle */}
           <button
             onClick={toggleFullscreen}
-            className="p-1.5 rounded-xs bg-white/10 hover:bg-white/20 active:translate-y-0.5 border border-white/30 text-white shadow-xs cursor-pointer"
-            title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh (F11)'}
+            className="hidden sm:flex p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
+            title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
           >
-            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
         </div>
       </div>
