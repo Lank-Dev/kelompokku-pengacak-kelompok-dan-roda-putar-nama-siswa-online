@@ -37,6 +37,7 @@ export function App() {
 
   // Initial state: starts completely empty as requested by user
   const [rawText, setRawText] = useState<string>('')
+  // Minimal 2 kelompok sampai 10 kelompok (default: 6)
   const [groupCount, setGroupCount] = useState<number>(6)
 
   // Spinner & Group state
@@ -78,9 +79,10 @@ export function App() {
     }
   }, [])
 
-  // Re-initializes engine state from text & groupCount
+  // Re-initializes engine state from text & groupCount (enforces min 2 max 10)
   const reinitializeEngine = useCallback((text: string, count: number) => {
-    const setup = setupEngine(text, count)
+    const validCount = Math.max(2, Math.min(10, count || 6))
+    const setup = setupEngine(text, validCount)
 
     isSecretModeRef.current = setup.isSecretMode
     priorityPoolRef.current = [...setup.priorityNames]
@@ -103,10 +105,11 @@ export function App() {
     reinitializeEngine(text, groupCount)
   }
 
-  // Handle group count changes from header
+  // Handle group count changes from header (minimal 2 sampai 10)
   const handleGroupCountChange = (count: number) => {
-    setGroupCount(count)
-    reinitializeEngine(rawText, count)
+    const validCount = Math.max(2, Math.min(10, count))
+    setGroupCount(validCount)
+    reinitializeEngine(rawText, validCount)
   }
 
   // Determine next target winner (silently respecting secret mode when active)
@@ -306,27 +309,38 @@ export function App() {
       }`}
     >
       {/* ========================================================= */}
-      {/* HEADER: Kelompokku, Refined Group Selector, Theme Toggle  */}
+      {/* HEADER: Kelompokku, Refined Group Selector (2-10), Theme Toggle */}
       {/* ========================================================= */}
       <header
         className={`flex-none h-14 sm:h-16 border-b px-4 sm:px-6 flex items-center justify-between transition-colors ${
-          darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200'
+          darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
         }`}
       >
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black text-sm shadow-xs select-none">
             K
           </div>
-          <span className="font-extrabold text-lg sm:text-xl tracking-tight text-slate-900 dark:text-white select-none">
+          <span
+            className={`font-black text-lg sm:text-xl tracking-tight select-none ${
+              darkMode ? 'text-white' : 'text-slate-900'
+            }`}
+          >
             Kelompokku
           </span>
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+          {/* Selector Jumlah Kelompok: minimal 2 kelompok sampai 10 kelompok */}
+          <div
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${
+              darkMode
+                ? 'border-slate-800 bg-slate-950 text-slate-300'
+                : 'border-slate-300 bg-slate-50 text-slate-700'
+            }`}
+          >
             <label
               htmlFor="group-select"
-              className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 select-none whitespace-nowrap"
+              className="text-xs sm:text-sm font-bold select-none whitespace-nowrap"
             >
               Jumlah Kelompok:
             </label>
@@ -334,10 +348,16 @@ export function App() {
               id="group-select"
               value={groupCount}
               disabled={isSpinning || isAutoSpinning}
-              onChange={(e) => handleGroupCountChange(Number(e.target.value))}
-              className="bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 font-black text-xs sm:text-sm px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs cursor-pointer focus:outline-hidden"
+              onChange={(e) =>
+                handleGroupCountChange(Math.max(2, Math.min(10, Number(e.target.value))))
+              }
+              className={`font-black text-xs sm:text-sm px-2.5 py-1 rounded-lg border shadow-2xs cursor-pointer focus:outline-hidden ${
+                darkMode
+                  ? 'bg-slate-900 text-blue-400 border-slate-700'
+                  : 'bg-white text-blue-600 border-slate-300'
+              }`}
             >
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+              {[2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
                 <option key={num} value={num}>
                   {num} Kelompok
                 </option>
@@ -452,10 +472,18 @@ export function App() {
         {/* ======================================================= */}
         <div className="lg:col-span-4 flex flex-col h-full min-h-0 w-full">
           <div className="flex-none flex items-center justify-between pb-2 px-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 select-none">
+            <span
+              className={`text-xs font-bold uppercase tracking-wider select-none ${
+                darkMode ? 'text-slate-400' : 'text-slate-600'
+              }`}
+            >
               Hasil Kelompok
             </span>
-            <span className="text-xs font-mono font-semibold text-slate-500 dark:text-slate-400">
+            <span
+              className={`text-xs font-mono font-bold ${
+                darkMode ? 'text-slate-400' : 'text-slate-600'
+              }`}
+            >
               {groups.reduce((acc, g) => acc + g.members.length, 0)}/{totalCount || 0} Terisi
             </span>
           </div>
@@ -472,37 +500,51 @@ export function App() {
                   className={`rounded-2xl border p-3.5 transition-all shadow-xs ${
                     isActive
                       ? darkMode
-                        ? 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-950/20'
-                        : 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/40'
+                        ? 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-950/30'
+                        : 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/50'
                       : darkMode
                       ? 'border-slate-800 bg-slate-900'
                       : 'border-slate-300 bg-white'
                   }`}
                 >
                   {/* Group Card Header */}
-                  <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-slate-200 dark:border-slate-800">
-                    <span className="font-bold text-sm text-slate-900 dark:text-white">
+                  <div
+                    className={`flex items-center justify-between pb-1.5 mb-2 border-b ${
+                      darkMode ? 'border-slate-800' : 'border-slate-200'
+                    }`}
+                  >
+                    <span
+                      className={`font-black text-sm ${
+                        darkMode ? 'text-white' : 'text-slate-950'
+                      }`}
+                    >
                       {group.name}
                     </span>
                     <span
-                      className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-md ${
+                      className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md ${
                         isFull
-                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
-                          : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400'
+                          ? darkMode
+                            ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800'
+                            : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          : darkMode
+                          ? 'bg-slate-800 text-slate-300'
+                          : 'bg-slate-100 text-slate-700'
                       }`}
                     >
                       {group.members.length}/{group.capacity}
                     </span>
                   </div>
 
-                  {/* Members List - Crisp, readable, zero cut-off */}
-                  <div className="space-y-1 min-h-[50px]">
+                  {/* Members List - ALWAYS 100% visible, crisp, bold font with high contrast */}
+                  <div className="space-y-1.5 min-h-[50px]">
                     {group.members.map((member, mIdx) => (
                       <div
                         key={mIdx}
-                        className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2 py-0.5"
+                        className={`text-xs sm:text-sm font-bold flex items-center gap-2 py-0.5 ${
+                          darkMode ? 'text-slate-100' : 'text-slate-900'
+                        }`}
                       >
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400 flex-shrink-0" />
+                        <span className="w-2 h-2 rounded-full bg-blue-600 flex-shrink-0" />
                         <span className="break-words leading-tight">{member}</span>
                       </div>
                     ))}
@@ -514,11 +556,13 @@ export function App() {
                           key={`empty-${eIdx}`}
                           className={`text-xs flex items-center gap-2 py-0.5 ${
                             isActive && eIdx === 0
-                              ? 'text-blue-500 font-semibold animate-pulse'
-                              : 'text-slate-300 dark:text-slate-700'
+                              ? 'text-blue-600 font-bold animate-pulse'
+                              : darkMode
+                              ? 'text-slate-600'
+                              : 'text-slate-400'
                           }`}
                         >
-                          <span className="w-1.5 h-1.5 rounded-full bg-current opacity-40 flex-shrink-0" />
+                          <span className="w-2 h-2 rounded-full bg-current opacity-30 flex-shrink-0" />
                           <span>{isActive && eIdx === 0 ? 'Sedang diundi...' : '—'}</span>
                         </div>
                       )
@@ -540,10 +584,18 @@ export function App() {
             }`}
           >
             <div className="flex-none flex items-center justify-between pb-2">
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 select-none">
+              <span
+                className={`text-xs font-bold select-none ${
+                  darkMode ? 'text-slate-300' : 'text-slate-700'
+                }`}
+              >
                 Daftar Nama
               </span>
-              <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+              <span
+                className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-md ${
+                  darkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'
+                }`}
+              >
                 {parsedParticipantsCount} Orang
               </span>
             </div>

@@ -187,7 +187,7 @@ export function shuffleArray<T>(arr: T[]): T[] {
 export function setupEngine(rawText: string, targetGroupCount: number): EngineSetup {
   const participants = parseParticipants(rawText)
   const totalCount = participants.length
-  const groupCount = Math.max(1, Math.min(20, targetGroupCount || 6))
+  const groupCount = Math.max(2, Math.min(20, targetGroupCount || 6))
   const allNames = participants.map((p) => p.name)
 
   const isSecretMode = checkSecretMode(participants)
