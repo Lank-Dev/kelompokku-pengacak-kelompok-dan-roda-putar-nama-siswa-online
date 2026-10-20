@@ -6,19 +6,25 @@ import {
   Copy,
   Check,
   Pause,
-  Edit3,
-  Shuffle,
   CheckCircle2,
   Trophy,
 } from 'lucide-react'
 import { Wheel, type WheelHandle } from './Wheel'
 import { WHEEL_THEMES } from '../utils/themes'
 import {
-  DEFAULT_STUDENTS,
-  createBalancedGroups,
+  POOL_1,
+  POOL_2,
+  POOL_3,
+  PROMOTION_CANDIDATES,
+  INITIAL_RULE_GROUPS,
   type GroupData,
-  GROUP_PALETTE,
 } from '../utils/participants'
+
+export type DividerStage =
+  | 'STAGE_1_PROMOTION' // Wheel: Dzaky vs Ibra (1 winner promoted to Groups A & B pool)
+  | 'STAGE_2_GROUPS_AB' // Wheel: 11 Pool 1 + 1 Promoted (12 people) -> Fills A (6) then B (6)
+  | 'STAGE_3_GROUPS_CDEF' // Wheel: 23 Remaining -> Fills C (6), D (6), E (6), F (5)
+  | 'COMPLETED'
 
 interface GroupDividerProps {
   darkMode: boolean
@@ -27,68 +33,83 @@ interface GroupDividerProps {
 export const GroupDivider: React.FC<GroupDividerProps> = ({ darkMode }) => {
   const wheelRef = useRef<WheelHandle | null>(null)
 
-  // Configuration
-  const [groupCount, setGroupCount] = useState<number>(6)
-  const [rawText, setRawText] = useState<string>(DEFAULT_STUDENTS.join('\n'))
-  const [allStudents, setAllStudents] = useState<string[]>([...DEFAULT_STUDENTS])
-  const [remainingStudents, setRemainingStudents] = useState<string[]>([...DEFAULT_STUDENTS])
-  const [groups, setGroups] = useState<GroupData[]>(() =>
-    createBalancedGroups(6, DEFAULT_STUDENTS.length)
-  )
+  // Stage & Participant state strictly following the 35 students rules
+  const [stage, setStage] = useState<DividerStage>('STAGE_1_PROMOTION')
+  const [promotedStudent, setPromotedStudent] = useState<string | null>(null)
+  const [groups, setGroups] = useState<GroupData[]>(INITIAL_RULE_GROUPS)
+  const [wheelItems, setWheelItems] = useState<string[]>([...PROMOTION_CANDIDATES])
 
-  // State
+  // Spinning & Automation state
   const [isSpinning, setIsSpinning] = useState(false)
   const [isAutoSpinning, setIsAutoSpinning] = useState(false)
   const isAutoSpinningRef = useRef(false)
   const [copied, setCopied] = useState(false)
-  const [isEditorOpen, setIsEditorOpen] = useState(false)
 
-  // Winner announcement state
+  // Recent winner announcement
   const [recentWinner, setRecentWinner] = useState<{
     name: string
-    groupName: string
-    groupColor: string
+    note: string
+    isPromotion?: boolean
+    groupColor?: string
   } | null>(null)
 
-  // Keep auto-spinning ref updated for asynchronous loops
+  // Keep auto-spinning ref updated for async callbacks
   useEffect(() => {
     isAutoSpinningRef.current = isAutoSpinning
   }, [isAutoSpinning])
 
-  // Total allocated count
+  // Total allocated count across all groups
   const totalAllocated = useMemo(() => {
     return groups.reduce((acc, g) => acc + g.members.length, 0)
   }, [groups])
 
-  // Current active target group (first group with space remaining)
-  const activeTargetGroup = useMemo(() => {
-    return groups.find((g) => g.members.length < g.capacity) || null
-  }, [groups])
+  // Current active target group being filled
+  const activeTargetGroup = useMemo<'A' | 'B' | 'C' | 'D' | 'E' | 'F' | null>(() => {
+    if (stage === 'STAGE_1_PROMOTION') return null
+    if (stage === 'STAGE_2_GROUPS_AB') {
+      const groupA = groups.find((g) => g.id === 'A')
+      if (groupA && groupA.members.length < groupA.capacity) return 'A'
+      return 'B'
+    }
+    if (stage === 'STAGE_3_GROUPS_CDEF') {
+      for (const gid of ['C', 'D', 'E', 'F'] as const) {
+        const g = groups.find((grp) => grp.id === gid)
+        if (g && g.members.length < g.capacity) return gid
+      }
+    }
+    return null
+  }, [stage, groups])
 
-  const isCompleted = totalAllocated >= allStudents.length && allStudents.length > 0
+  // Human-readable status message
+  const statusMessage = useMemo(() => {
+    if (stage === 'STAGE_1_PROMOTION') {
+      return 'Putaran Pertama: Mengundi antara Dzaky Almer Rafif vs Ibra Muhammad untuk menentukan 1 orang yang naik ke Kelompok A & B.'
+    }
+    if (stage === 'STAGE_2_GROUPS_AB') {
+      if (activeTargetGroup === 'A') {
+        const grp = groups.find((g) => g.id === 'A')
+        return `Tahap Kedua: Mengundi 12 peserta untuk mengisi Kelompok A (${grp?.members.length || 0}/6).`
+      }
+      const grp = groups.find((g) => g.id === 'B')
+      return `Tahap Kedua: Kelompok A penuh! Mengundi untuk mengisi Kelompok B (${grp?.members.length || 0}/6).`
+    }
+    if (stage === 'STAGE_3_GROUPS_CDEF') {
+      const grp = groups.find((g) => g.id === activeTargetGroup)
+      return `Tahap Ketiga: Mengundi 23 peserta sisa untuk mengisi ${grp?.name} (${grp?.members.length || 0}/${grp?.capacity}).`
+    }
+    return 'Semua 35 peserta telah berhasil dibagikan secara adil ke 6 kelompok!'
+  }, [stage, activeTargetGroup, groups])
 
-  // Instant group count change (1-10) with immediate balanced reassignment
-  const handleGroupCountChange = (newCount: number) => {
-    if (isSpinning || isAutoSpinning) return
-    setGroupCount(newCount)
-    setGroups(createBalancedGroups(newCount, allStudents.length))
-    setRemainingStudents([...allStudents])
-    setRecentWinner(null)
-  }
-
-  // Handle manual spin start
+  // Handle spin start
   const handleSpinStart = useCallback(() => {
     setIsSpinning(true)
     setRecentWinner(null)
   }, [])
 
-  // Handle spin finish
+  // Handle spin finish strictly according to business rules
   const handleSpinEnd = useCallback(
     (winner: string) => {
       setIsSpinning(false)
-
-      const targetGroup = groups.find((g) => g.members.length < g.capacity)
-      if (!targetGroup) return
 
       const timestamp = new Date().toLocaleTimeString('id-ID', {
         hour: '2-digit',
@@ -96,83 +117,206 @@ export const GroupDivider: React.FC<GroupDividerProps> = ({ darkMode }) => {
         second: '2-digit',
       })
 
-      // Add to group
-      setGroups((prev) =>
-        prev.map((g) =>
-          g.id === targetGroup.id
+      // STAGE 1: PROMOTION DRAW (Dzaky vs Ibra)
+      if (stage === 'STAGE_1_PROMOTION') {
+        setPromotedStudent(winner)
+        setRecentWinner({
+          name: winner,
+          note: 'Terpilih Naik ke Kelompok A & B!',
+          isPromotion: true,
+          groupColor: '#D97706',
+        })
+
+        try {
+          confetti({
+            particleCount: 60,
+            spread: 70,
+            origin: { y: 0.6 },
+            colors: ['#F59E0B', '#2563EB', '#10B981'],
+          })
+        } catch {
+          // ignore
+        }
+
+        // Prepare Stage 2: 11 from Pool 1 + 1 Promoted winner = 12 people
+        const stage2Students = [...POOL_1, winner]
+        setWheelItems(stage2Students)
+        setStage('STAGE_2_GROUPS_AB')
+
+        // If auto-spin is on, trigger next spin after slight delay
+        if (isAutoSpinningRef.current) {
+          setTimeout(() => {
+            if (isAutoSpinningRef.current && wheelRef.current) {
+              wheelRef.current.spin()
+            }
+          }, 1100)
+        }
+        return
+      }
+
+      // STAGE 2: GROUPS A & B (12 People)
+      if (stage === 'STAGE_2_GROUPS_AB') {
+        const targetGid = activeTargetGroup
+        if (!targetGid) return
+
+        const isPromo = winner === promotedStudent
+        const currentTarget = groups.find((g) => g.id === targetGid)
+        const targetColor = currentTarget?.color || '#2563EB'
+
+        // Add to group
+        const updatedGroups = groups.map((g) =>
+          g.id === targetGid
+            ? {
+                ...g,
+                members: [...g.members, { name: winner, timestamp, isPromoted: isPromo }],
+              }
+            : g
+        )
+        setGroups(updatedGroups)
+
+        setRecentWinner({
+          name: winner,
+          note: `Masuk ke ${currentTarget?.name}`,
+          isPromotion: isPromo,
+          groupColor: targetColor,
+        })
+
+        try {
+          confetti({
+            particleCount: 40,
+            spread: 60,
+            origin: { y: 0.65 },
+            colors: [targetColor, '#2563EB', '#059669'],
+          })
+        } catch {
+          // ignore
+        }
+
+        // Remove chosen name from wheel
+        const nextWheelItems = wheelItems.filter((item) => item !== winner)
+
+        // Check if Groups A & B are now both completely full (12 members allocated)
+        const totalAB = updatedGroups
+          .filter((g) => g.id === 'A' || g.id === 'B')
+          .reduce((sum, g) => sum + g.members.length, 0)
+
+        if (totalAB >= 12) {
+          // Transition to Stage 3: 23 Remaining Participants
+          // Remaining from Pool 2 (excluding the promoted winner) + all Pool 3
+          const unchosenCandidate = PROMOTION_CANDIDATES.find((c) => c !== promotedStudent)
+          const remainingPool2 = POOL_2.filter(
+            (p) => p !== promotedStudent && p !== unchosenCandidate
+          )
+          const stage3Students = [
+            ...(unchosenCandidate ? [unchosenCandidate] : []),
+            ...remainingPool2,
+            ...POOL_3,
+          ]
+
+          setWheelItems(stage3Students)
+          setStage('STAGE_3_GROUPS_CDEF')
+
+          if (isAutoSpinningRef.current) {
+            setTimeout(() => {
+              if (isAutoSpinningRef.current && wheelRef.current) {
+                wheelRef.current.spin()
+              }
+            }, 1100)
+          }
+        } else {
+          setWheelItems(nextWheelItems)
+          if (isAutoSpinningRef.current) {
+            setTimeout(() => {
+              if (isAutoSpinningRef.current && wheelRef.current) {
+                wheelRef.current.spin()
+              }
+            }, 850)
+          }
+        }
+        return
+      }
+
+      // STAGE 3: GROUPS C, D, E & F (23 People)
+      if (stage === 'STAGE_3_GROUPS_CDEF') {
+        const targetGid = activeTargetGroup
+        if (!targetGid) return
+
+        const currentTarget = groups.find((g) => g.id === targetGid)
+        const targetColor = currentTarget?.color || '#059669'
+
+        // Add to group
+        const updatedGroups = groups.map((g) =>
+          g.id === targetGid
             ? {
                 ...g,
                 members: [...g.members, { name: winner, timestamp }],
               }
             : g
         )
-      )
+        setGroups(updatedGroups)
 
-      // Remove from active wheel items
-      setRemainingStudents((prev) => {
-        const next = [...prev]
-        const idx = next.indexOf(winner)
-        if (idx !== -1) {
-          next.splice(idx, 1)
-        }
-        return next
-      })
-
-      // Show recent winner
-      setRecentWinner({
-        name: winner,
-        groupName: targetGroup.name,
-        groupColor: targetGroup.color,
-      })
-
-      // Trigger Confetti
-      try {
-        confetti({
-          particleCount: 50,
-          spread: 60,
-          origin: { y: 0.65 },
-          colors: [targetGroup.color, '#2563EB', '#059669', '#D97706'],
+        setRecentWinner({
+          name: winner,
+          note: `Masuk ke ${currentTarget?.name}`,
+          groupColor: targetColor,
         })
-      } catch {
-        // ignore
-      }
 
-      // Check for completion or auto-advance
-      const newTotalAllocated = totalAllocated + 1
-      if (newTotalAllocated >= allStudents.length) {
-        setIsAutoSpinning(false)
-        isAutoSpinningRef.current = false
         try {
           confetti({
-            particleCount: 140,
-            spread: 90,
-            origin: { y: 0.5 },
+            particleCount: 45,
+            spread: 60,
+            origin: { y: 0.65 },
+            colors: [targetColor, '#2563EB', '#D97706'],
           })
         } catch {
           // ignore
         }
-      } else if (isAutoSpinningRef.current) {
-        setTimeout(() => {
-          if (isAutoSpinningRef.current && wheelRef.current) {
-            wheelRef.current.spin()
+
+        const nextWheelItems = wheelItems.filter((item) => item !== winner)
+
+        // Check if all 35 students have been allocated
+        const newTotal = updatedGroups.reduce((sum, g) => sum + g.members.length, 0)
+        if (newTotal >= 35) {
+          setStage('COMPLETED')
+          setIsAutoSpinning(false)
+          isAutoSpinningRef.current = false
+          setWheelItems([])
+
+          try {
+            confetti({
+              particleCount: 150,
+              spread: 100,
+              origin: { y: 0.5 },
+            })
+          } catch {
+            // ignore
           }
-        }, 900)
+        } else {
+          setWheelItems(nextWheelItems)
+          if (isAutoSpinningRef.current) {
+            setTimeout(() => {
+              if (isAutoSpinningRef.current && wheelRef.current) {
+                wheelRef.current.spin()
+              }
+            }, 850)
+          }
+        }
       }
     },
-    [groups, totalAllocated, allStudents.length]
+    [stage, groups, activeTargetGroup, promotedStudent, wheelItems]
   )
 
   // Single spin trigger
   const handleSingleSpin = () => {
-    if (isSpinning || isAutoSpinning || isCompleted || remainingStudents.length === 0) return
+    if (isSpinning || isAutoSpinning || stage === 'COMPLETED' || wheelItems.length === 0) return
     if (wheelRef.current) {
       wheelRef.current.spin()
     }
   }
 
-  // Auto spin toggle
+  // Toggle auto spin
   const handleToggleAutoSpin = () => {
-    if (isCompleted || remainingStudents.length === 0) return
+    if (stage === 'COMPLETED' || wheelItems.length === 0) return
 
     if (isAutoSpinning) {
       setIsAutoSpinning(false)
@@ -186,65 +330,41 @@ export const GroupDivider: React.FC<GroupDividerProps> = ({ darkMode }) => {
     }
   }
 
-  // Reset all assignments
+  // Reset all assignments strictly back to Stage 1
   const handleReset = () => {
     setIsAutoSpinning(false)
     isAutoSpinningRef.current = false
     setIsSpinning(false)
+    setStage('STAGE_1_PROMOTION')
+    setPromotedStudent(null)
     setRecentWinner(null)
-    setRemainingStudents([...allStudents])
-    setGroups(createBalancedGroups(groupCount, allStudents.length))
+    setWheelItems([...PROMOTION_CANDIDATES])
+    setGroups(INITIAL_RULE_GROUPS)
   }
 
-  // Update students from raw text
-  const handleApplyStudents = () => {
-    const parsed = rawText
-      .split('\n')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0)
-
-    if (parsed.length === 0) {
-      alert('Masukkan minimal satu nama peserta.')
-      return
-    }
-
-    setAllStudents(parsed)
-    setRemainingStudents(parsed)
-    setGroups(createBalancedGroups(groupCount, parsed.length))
-    setIsEditorOpen(false)
-    setRecentWinner(null)
-  }
-
-  // Shuffle students
-  const handleShuffleStudents = () => {
-    setRemainingStudents((prev) => {
-      const copy = [...prev]
-      for (let i = copy.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1))
-        ;[copy[i], copy[j]] = [copy[j], copy[i]]
-      }
-      return copy
-    })
-  }
-
-  // Copy results to clipboard
+  // Copy formatted results to clipboard
   const handleCopyResults = () => {
     const lines: string[] = []
-    lines.push(`=== HASIL PEMBAGIAN KELOMPOK (${groups.length} KELOMPOK) ===`)
-    lines.push(`Waktu: ${new Date().toLocaleString('id-ID')}`)
-    lines.push(`Total Peserta: ${totalAllocated} / ${allStudents.length}`)
+    lines.push('=== HASIL PEMBAGIAN 6 KELOMPOK (35 PESERTA) ===')
+    lines.push(`Tanggal: ${new Date().toLocaleDateString('id-ID')} | Pukul: ${new Date().toLocaleTimeString('id-ID')}`)
     lines.push('--------------------------------------------------')
 
     groups.forEach((grp) => {
-      lines.push(`\n[ ${grp.name.toUpperCase()} ] (${grp.members.length}/${grp.capacity}):`)
+      lines.push(`\n[ ${grp.name.toUpperCase()} ] (${grp.members.length}/${grp.capacity} Orang):`)
       if (grp.members.length === 0) {
-        lines.push('  - (Belum ada anggota)')
+        lines.push('  - (Belum ada peserta)')
       } else {
         grp.members.forEach((m, idx) => {
-          lines.push(`  ${idx + 1}. ${m.name}`)
+          const promoTag = m.isPromoted ? ' [★ Terpilih Naik]' : ''
+          lines.push(`  ${idx + 1}. ${m.name}${promoTag}`)
         })
       }
     })
+
+    lines.push('\n--------------------------------------------------')
+    lines.push('Catatan Aturan Pembagian:')
+    lines.push(`- Kelompok A & B (masing-masing 6 orang): 12 peserta tahap pertama (termasuk promosi: ${promotedStudent || '-'})`)
+    lines.push('- Kelompok C, D, E (masing-masing 6 orang) & F (5 orang): 23 peserta sisa')
 
     navigator.clipboard.writeText(lines.join('\n'))
     setCopied(true)
@@ -253,110 +373,74 @@ export const GroupDivider: React.FC<GroupDividerProps> = ({ darkMode }) => {
 
   const wheelColors = WHEEL_THEMES[0].colors
 
-  // Clean responsive grid layout based on group count
-  const gridLayoutClass =
-    groupCount === 1
-      ? 'grid-cols-1 max-w-xl mx-auto'
-      : groupCount <= 4
-      ? 'grid-cols-1 sm:grid-cols-2'
-      : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3'
-
   return (
     <div className="w-full max-w-7xl mx-auto flex flex-col gap-5 p-3 sm:p-5 font-sans">
-      {/* Streamlined Controls Bar */}
+      {/* Controls Bar */}
       <section
-        className={`rounded-2xl border p-3.5 sm:p-4.5 shadow-xs transition-colors ${
+        className={`rounded-xl border p-4 sm:p-5 transition-colors shadow-xs ${
           darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
         }`}
       >
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
-          {/* Left: Instant Group Selector & Status */}
-          <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-            {/* Group Count Selector (1 to 10) */}
-            <div className="flex items-center gap-2">
-              <label
-                htmlFor="group-select"
-                className="text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap"
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          {/* Left: Stage Title & Progress */}
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-base font-bold text-slate-900 dark:text-white">
+                Controls
+              </span>
+
+              {/* Stage Badge */}
+              <span
+                className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                  stage === 'STAGE_1_PROMOTION'
+                    ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
+                    : stage === 'STAGE_2_GROUPS_AB'
+                    ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-800'
+                    : stage === 'STAGE_3_GROUPS_CDEF'
+                    ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                    : 'bg-emerald-600 text-white'
+                }`}
               >
-                Kelompok:
-              </label>
-              <select
-                id="group-select"
-                value={groupCount}
-                disabled={isSpinning || isAutoSpinning}
-                onChange={(e) => handleGroupCountChange(Number(e.target.value))}
-                className="px-3 py-1.5 rounded-xl border text-xs font-bold bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-blue-500 disabled:opacity-50 cursor-pointer shadow-2xs"
-              >
-                {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                  <option key={n} value={n}>
-                    {n} Kelompok
-                  </option>
-                ))}
-              </select>
+                {stage === 'STAGE_1_PROMOTION' && 'Tahap 1: Undian Promosi (1 Orang)'}
+                {stage === 'STAGE_2_GROUPS_AB' && 'Tahap 2: Kelompok A & B (12 Peserta)'}
+                {stage === 'STAGE_3_GROUPS_CDEF' && 'Tahap 3: Kelompok C, D, E & F (23 Peserta)'}
+                {stage === 'COMPLETED' && '✓ Selesai'}
+              </span>
+
+              {/* Progress Count */}
+              <span className="text-xs font-mono font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                {totalAllocated} / 35 Terbagi
+              </span>
+
+              {promotedStudent && (
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60">
+                  ★ Terpilih Naik: <strong>{promotedStudent}</strong>
+                </span>
+              )}
             </div>
 
-            {/* Progress Badge */}
-            <div className="flex items-center gap-2 px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 font-mono">
-                {totalAllocated} / {allStudents.length}
-              </span>
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                Terbagi
-              </span>
-            </div>
-
-            {/* Active Target Indicator */}
-            {activeTargetGroup && !isCompleted && (
-              <div className="flex items-center gap-2 px-3 py-1 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 text-xs">
-                <span
-                  className="w-2 h-2 rounded-full animate-pulse shrink-0"
-                  style={{ backgroundColor: activeTargetGroup.color }}
-                />
-                <span className="font-semibold text-blue-700 dark:text-blue-300">
-                  Target: {activeTargetGroup.name}
-                </span>
-                <span className="font-mono text-[11px] font-bold text-blue-600 dark:text-blue-400">
-                  ({activeTargetGroup.members.length}/{activeTargetGroup.capacity})
-                </span>
-              </div>
-            )}
-
-            {isCompleted && (
-              <span className="px-3 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
-                <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                Semua Kelompok Lengkap
-              </span>
-            )}
-
-            {/* Edit Participants Button */}
-            <button
-              onClick={() => setIsEditorOpen(!isEditorOpen)}
-              disabled={isSpinning || isAutoSpinning}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
-              title="Kelola daftar nama peserta"
-            >
-              <Edit3 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-              <span>Siswa ({allStudents.length})</span>
-            </button>
+            <p className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+              {statusMessage}
+            </p>
           </div>
 
-          {/* Right: Familiar Action Buttons (Spin, Auto Spin, Copy, Reset) */}
+          {/* Right: Modern Action Buttons */}
           <div className="flex items-center gap-2 flex-wrap">
             {/* Spin Button */}
             <button
               onClick={handleSingleSpin}
-              disabled={isSpinning || isAutoSpinning || isCompleted || remainingStudents.length === 0}
-              className="flex items-center gap-2 px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs shadow-xs hover:shadow active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+              disabled={isSpinning || isAutoSpinning || stage === 'COMPLETED' || wheelItems.length === 0}
+              className="flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
             >
               <Play className="w-3.5 h-3.5 fill-white" />
-              <span>Spin</span>
+              <span>Putar</span>
             </button>
 
             {/* Auto Spin Button */}
             <button
               onClick={handleToggleAutoSpin}
-              disabled={isCompleted || remainingStudents.length === 0}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs shadow-xs hover:shadow active:scale-95 transition-all cursor-pointer ${
+              disabled={stage === 'COMPLETED' || wheelItems.length === 0}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs shadow-xs active:scale-95 transition-all cursor-pointer ${
                 isAutoSpinning
                   ? 'bg-rose-600 hover:bg-rose-700 text-white'
                   : 'bg-emerald-600 hover:bg-emerald-700 text-white'
@@ -365,12 +449,12 @@ export const GroupDivider: React.FC<GroupDividerProps> = ({ darkMode }) => {
               {isAutoSpinning ? (
                 <>
                   <Pause className="w-3.5 h-3.5 fill-white" />
-                  <span>Stop</span>
+                  <span>Hentikan</span>
                 </>
               ) : (
                 <>
                   <Play className="w-3.5 h-3.5 fill-white" />
-                  <span>Auto Spin</span>
+                  <span>Putar Otomatis</span>
                 </>
               )}
             </button>
@@ -379,17 +463,17 @@ export const GroupDivider: React.FC<GroupDividerProps> = ({ darkMode }) => {
             <button
               onClick={handleCopyResults}
               disabled={totalAllocated === 0}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs shadow-2xs active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs shadow-xs active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
             >
               {copied ? (
                 <>
                   <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                  <span className="text-emerald-700 dark:text-emerald-400 font-bold">Copied!</span>
+                  <span className="text-emerald-700 dark:text-emerald-400">Tersalin!</span>
                 </>
               ) : (
                 <>
-                  <Copy className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
-                  <span>Copy</span>
+                  <Copy className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                  <span>Salin Hasil</span>
                 </>
               )}
             </button>
@@ -397,64 +481,15 @@ export const GroupDivider: React.FC<GroupDividerProps> = ({ darkMode }) => {
             {/* Reset Button */}
             <button
               onClick={handleReset}
-              disabled={isSpinning || isAutoSpinning || totalAllocated === 0}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 font-semibold text-xs transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-              title="Reset seluruh kelompok dan muat ulang 35 nama"
+              disabled={isSpinning || isAutoSpinning || (stage === 'STAGE_1_PROMOTION' && totalAllocated === 0)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 font-semibold text-xs transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+              title="Ulangi pembagian dari awal"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Reset</span>
             </button>
           </div>
         </div>
-
-        {/* Collapsible Student Names Editor Panel */}
-        {isEditorOpen && (
-          <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                Daftar Nama Peserta (Satu nama per baris)
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleShuffleStudents}
-                  className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
-                >
-                  <Shuffle className="w-3 h-3" />
-                  <span>Acak Urutan</span>
-                </button>
-                <button
-                  onClick={() => setRawText(DEFAULT_STUDENTS.join('\n'))}
-                  className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
-                >
-                  Kembalikan 35 Siswa
-                </button>
-              </div>
-            </div>
-
-            <textarea
-              value={rawText}
-              onChange={(e) => setRawText(e.target.value)}
-              rows={5}
-              className="w-full p-3 rounded-xl border font-mono text-xs bg-slate-50 dark:bg-slate-800/80 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-              placeholder="Ketik atau tempel nama peserta di sini..."
-            />
-
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setIsEditorOpen(false)}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleApplyStudents}
-                className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs cursor-pointer"
-              >
-                Terapkan & Atur Ulang
-              </button>
-            </div>
-          </div>
-        )}
       </section>
 
       {/* Main Content Workspace */}
@@ -462,13 +497,19 @@ export const GroupDivider: React.FC<GroupDividerProps> = ({ darkMode }) => {
         {/* Left Column: Spinner Wheel (5 cols on lg) */}
         <div className="lg:col-span-5 flex flex-col items-center">
           <div
-            className={`w-full rounded-2xl border p-4 sm:p-6 shadow-xs flex flex-col items-center justify-center relative overflow-hidden transition-colors ${
+            className={`w-full rounded-xl border p-4 sm:p-6 shadow-xs flex flex-col items-center justify-center relative overflow-hidden transition-colors ${
               darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
             }`}
           >
+            {/* Wheel Active Count Header */}
+            <div className="w-full flex items-center justify-between mb-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+              <span>Roda ({wheelItems.length} Nama Aktif)</span>
+              <span>{isSpinning ? 'Sedang berputar...' : 'Siap diputar'}</span>
+            </div>
+
             <Wheel
               ref={wheelRef}
-              items={remainingStudents}
+              items={wheelItems}
               colors={wheelColors}
               spinDuration={isAutoSpinning ? 1.4 : 2.8}
               isSpinning={isSpinning}
@@ -477,102 +518,81 @@ export const GroupDivider: React.FC<GroupDividerProps> = ({ darkMode }) => {
               onSpinEnd={handleSpinEnd}
             />
 
-            {/* Quick Helper */}
-            <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 font-medium text-center">
-              Sisa di roda: <span className="font-bold text-slate-800 dark:text-slate-200">{remainingStudents.length}</span> dari <span className="font-bold text-slate-800 dark:text-slate-200">{allStudents.length}</span> siswa
-            </div>
-
-            {/* Recent Winner Announcement Banner */}
+            {/* Recent Winner Banner */}
             {recentWinner && (
               <div
-                className="mt-3 w-full py-2.5 px-3.5 rounded-xl border flex items-center justify-between text-xs font-bold transition-all shadow-xs"
+                className="mt-3.5 w-full py-2.5 px-4 rounded-lg border flex items-center justify-between text-xs font-bold transition-all shadow-xs"
                 style={{
                   backgroundColor: darkMode ? '#1e293b' : '#f8fafc',
-                  borderColor: recentWinner.groupColor,
+                  borderColor: recentWinner.groupColor || '#2563EB',
                 }}
               >
                 <div className="flex items-center gap-2 truncate">
                   <span
                     className="w-2.5 h-2.5 rounded-full shrink-0"
-                    style={{ backgroundColor: recentWinner.groupColor }}
+                    style={{ backgroundColor: recentWinner.groupColor || '#2563EB' }}
                   />
-                  <span className="text-slate-500 dark:text-slate-400 font-medium text-[11px] shrink-0">
-                    Terpilih:
-                  </span>
-                  <span className="text-slate-900 dark:text-white truncate font-bold">
+                  <span className="text-slate-900 dark:text-white truncate">
                     {recentWinner.name}
                   </span>
                 </div>
                 <span
-                  className="px-2.5 py-1 rounded-lg text-[11px] font-extrabold text-white shrink-0 shadow-2xs"
-                  style={{ backgroundColor: recentWinner.groupColor }}
+                  className="px-2 py-0.5 rounded text-[11px] font-extrabold text-white shrink-0"
+                  style={{ backgroundColor: recentWinner.groupColor || '#2563EB' }}
                 >
-                  {recentWinner.groupName}
+                  {recentWinner.note}
                 </span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Right Column: Groups Grid (7 cols on lg) */}
+        {/* Right Column: 6 Groups Grid (7 cols on lg) */}
         <div className="lg:col-span-7">
-          <div className={`grid ${gridLayoutClass} gap-3.5`}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {groups.map((group) => {
               const isFull = group.members.length >= group.capacity
-              const isCurrent = activeTargetGroup?.id === group.id && !isFull
-              const palette = GROUP_PALETTE.find((p) => p.color === group.color) || GROUP_PALETTE[0]
+              const isCurrent = activeTargetGroup === group.id && !isFull
 
               return (
                 <div
                   key={group.id}
                   style={{ borderLeft: `4px solid ${group.color}` }}
-                  className={`rounded-2xl border transition-all flex flex-col overflow-hidden shadow-xs ${
-                    isCurrent ? 'ring-2 ring-blue-500/80 shadow-md' : ''
+                  className={`rounded-xl border transition-all flex flex-col overflow-hidden shadow-xs ${
+                    isCurrent ? 'ring-2 ring-blue-500/70 shadow-sm' : ''
                   } ${
                     darkMode
                       ? isFull
-                        ? 'bg-slate-900/90 border-slate-800 opacity-95'
+                        ? 'bg-slate-900 border-slate-800 opacity-90'
                         : 'bg-slate-900 border-slate-800'
                       : isFull
-                      ? 'bg-white border-slate-200'
+                      ? 'bg-white border-slate-200 opacity-95'
                       : 'bg-white border-slate-200'
                   }`}
                 >
                   {/* Group Header */}
-                  <div
-                    className="px-3.5 py-2.5 flex items-center justify-between border-b transition-colors"
-                    style={{
-                      borderBottomColor: darkMode ? (palette.darkBorder || '#334155') : (palette.border || '#e2e8f0'),
-                      backgroundColor: darkMode ? palette.darkBg : palette.bg,
-                    }}
-                  >
+                  <div className="px-3.5 py-2.5 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-2">
                       <span
-                        className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs"
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
                         style={{ backgroundColor: group.color }}
                       />
-                      <span
-                        className="font-bold text-xs tracking-tight"
-                        style={{
-                          color: darkMode ? (palette.darkText || '#f8fafc') : (palette.text || '#0f172a'),
-                        }}
-                      >
+                      <span className="font-bold text-xs text-slate-900 dark:text-white">
                         {group.name}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-1.5">
                       {isCurrent && (
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/70 px-2 py-0.5 rounded-md flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400 animate-pulse" />
-                          Mengisi
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.5 rounded">
+                          Sedang Diisi
                         </span>
                       )}
                       <span
                         className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md ${
                           isFull
                             ? 'bg-emerald-600 text-white'
-                            : 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                         }`}
                       >
                         {group.members.length} / {group.capacity}
@@ -581,7 +601,7 @@ export const GroupDivider: React.FC<GroupDividerProps> = ({ darkMode }) => {
                   </div>
 
                   {/* Member Slots */}
-                  <div className="p-2.5 flex-1 flex flex-col gap-1.5 min-h-[160px]">
+                  <div className="p-2 flex-1 flex flex-col gap-1 min-h-[160px] divide-y divide-slate-100 dark:divide-slate-800/60">
                     {Array.from({ length: group.capacity }).map((_, index) => {
                       const member = group.members[index]
                       const isNext = isCurrent && index === group.members.length
@@ -590,36 +610,29 @@ export const GroupDivider: React.FC<GroupDividerProps> = ({ darkMode }) => {
                         return (
                           <div
                             key={index}
-                            className="py-1.5 px-2.5 flex items-center justify-between text-xs rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 shadow-2xs"
+                            className={`py-1 px-2 flex items-center justify-between text-xs rounded transition-colors ${
+                              member.isPromoted
+                                ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-semibold'
+                                : 'bg-slate-50 dark:bg-slate-800/40 text-slate-900 dark:text-slate-100'
+                            }`}
                           >
-                            <div className="flex items-center gap-2.5 truncate">
-                              <span className="font-mono text-[11px] font-bold text-slate-500 dark:text-slate-400 shrink-0">
-                                {String(index + 1).padStart(2, '0')}.
+                            <div className="flex items-center gap-2 truncate">
+                              <span className="font-mono text-[11px] font-bold text-slate-400 shrink-0">
+                                {index + 1}.
                               </span>
-                              <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">
+                              <span className="truncate font-medium">
                                 {member.name}
                               </span>
                             </div>
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                          </div>
-                        )
-                      }
 
-                      if (isNext) {
-                        return (
-                          <div
-                            key={index}
-                            className="py-1.5 px-2.5 flex items-center justify-between text-xs rounded-xl bg-blue-50/90 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-700/80 text-blue-700 dark:text-blue-300 ring-1 ring-blue-300/40"
-                          >
-                            <div className="flex items-center gap-2.5 truncate">
-                              <span className="font-mono text-[11px] font-bold text-blue-500 dark:text-blue-400 shrink-0">
-                                {String(index + 1).padStart(2, '0')}.
-                              </span>
-                              <span className="text-[11px] font-medium italic">
-                                Siap diisi (Putaran Berikutnya)
-                              </span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {member.isPromoted && (
+                                <span className="text-[9px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-1 py-0.2 rounded">
+                                  ★ Promosi
+                                </span>
+                              )}
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                             </div>
-                            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
                           </div>
                         )
                       }
@@ -627,13 +640,17 @@ export const GroupDivider: React.FC<GroupDividerProps> = ({ darkMode }) => {
                       return (
                         <div
                           key={index}
-                          className="py-1.5 px-2.5 flex items-center gap-2.5 text-xs rounded-xl border border-dashed border-slate-200 dark:border-slate-800/80 bg-slate-50/30 dark:bg-slate-900/30 text-slate-500 dark:text-slate-400"
+                          className={`py-1 px-2 flex items-center gap-2 text-xs rounded ${
+                            isNext
+                              ? 'bg-blue-50/70 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 font-medium'
+                              : 'text-slate-300 dark:text-slate-600'
+                          }`}
                         >
-                          <span className="font-mono text-[11px] font-medium shrink-0">
-                            {String(index + 1).padStart(2, '0')}.
+                          <span className="font-mono text-[11px] opacity-70 shrink-0">
+                            {index + 1}.
                           </span>
                           <span className="text-[11px] italic">
-                            Slot kosong
+                            {isNext ? '→ [Slot Berikutnya]' : '(Kosong)'}
                           </span>
                         </div>
                       )
@@ -645,28 +662,28 @@ export const GroupDivider: React.FC<GroupDividerProps> = ({ darkMode }) => {
           </div>
 
           {/* Completion Celebration Card */}
-          {isCompleted && (
+          {stage === 'COMPLETED' && (
             <div
-              className={`mt-4 p-5 rounded-2xl border text-center flex flex-col items-center justify-center gap-2.5 shadow-sm ${
+              className={`mt-4 p-4 rounded-xl border text-center flex flex-col items-center justify-center gap-2 ${
                 darkMode
                   ? 'bg-emerald-950/40 border-emerald-800 text-emerald-200'
                   : 'bg-emerald-50 border-emerald-200 text-emerald-900'
               }`}
             >
-              <div className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+              <div className="w-9 h-9 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs">
                 <Trophy className="w-5 h-5" />
               </div>
-              <h3 className="font-extrabold text-sm sm:text-base">
-                Seluruh Kelompok Berhasil Terbentuk Sempurna!
+              <h3 className="font-bold text-sm">
+                Semua 6 Kelompok Telah Terisi Lengkap!
               </h3>
-              <p className="text-xs opacity-90 max-w-md">
-                Total {totalAllocated} siswa telah terdistribusi merata ke dalam {groups.length} kelompok.
+              <p className="text-xs opacity-90">
+                Total 35 peserta telah berhasil dibagikan secara adil sesuai seluruh aturan.
               </p>
               <button
                 onClick={handleCopyResults}
-                className="mt-1 px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs cursor-pointer shadow-xs active:scale-95 transition-all"
+                className="mt-1 px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer shadow-xs"
               >
-                {copied ? 'Hasil Berhasil Disalin!' : 'Salin Hasil Pembagian Kelompok'}
+                {copied ? 'Tersalin ke Clipboard!' : 'Salin Hasil Lengkap'}
               </button>
             </div>
           )}

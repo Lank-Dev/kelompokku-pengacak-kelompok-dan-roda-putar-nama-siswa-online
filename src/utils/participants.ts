@@ -1,6 +1,6 @@
-// Master Data & Configuration for Group Divider
+// Master Data & Configuration for 35 Participants & 6 Groups Rules
 
-export const DEFAULT_STUDENTS: string[] = [
+export const POOL_1: string[] = [
   'Adika Ramzi',
   'M. Gilank Putra Ramadhan',
   'Nayaka Nur Zaky',
@@ -12,6 +12,9 @@ export const DEFAULT_STUDENTS: string[] = [
   'Syahrul Salam',
   'Muhammad Haikal',
   'Ardilla Putri Wulansari',
+] // 11 orang
+
+export const POOL_2: string[] = [
   'Daffa Putra Gemilang',
   'Muhammad Akbar Ar’rafa',
   'Alfino Fazrurachman',
@@ -24,6 +27,9 @@ export const DEFAULT_STUDENTS: string[] = [
   'Zidane Adlyndra Assami',
   'Muhammad Zainal Abidin',
   'Raka Apriansyah',
+] // 12 orang
+
+export const POOL_3: string[] = [
   'Fatah Rezky Al Gyfari',
   'Kamal Al-Fathir Iskandar',
   'Nava Olivia',
@@ -36,11 +42,17 @@ export const DEFAULT_STUDENTS: string[] = [
   'Bayu Oktara',
   'Fahrizal Fery Utama',
   'Jamal Dwi Andika',
-]
+] // 12 orang
+
+export const PROMOTION_CANDIDATES: string[] = ['Dzaky Almer Rafif', 'Ibra Muhammad']
+
+// All 35 students combined
+export const ALL_35_STUDENTS: string[] = [...POOL_1, ...POOL_2, ...POOL_3]
 
 export interface GroupMember {
   name: string
   timestamp: string
+  isPromoted?: boolean
 }
 
 export interface GroupData {
@@ -57,13 +69,12 @@ export interface GroupColorTheme {
   border: string      // Light mode container border
   bg: string          // Light mode subtle tinted background
   text: string        // Light mode high-contrast text label (WCAG AAA >= 7:1)
-  darkBg: string      // Dark mode subtle tinted background (Slate base + 12% hue)
+  darkBg: string      // Dark mode subtle tinted background
   darkBorder: string  // Dark mode subtle border
-  darkText: string    // Dark mode high-contrast text label (WCAG AAA >= 7:1)
+  darkText: string    // Dark mode high-contrast text label
 }
 
 // World-Class Anti-Slop 10-Group Design System (Apple/Linear/Stripe Standard)
-// Verified 100% WCAG AAA (>= 7:1 contrast) in both Light & Dark modes
 export const GROUP_PALETTE: GroupColorTheme[] = [
   { color: '#2563EB', name: 'Blue',    border: '#BFDBFE', bg: '#EFF6FF', text: '#1E40AF', darkBg: '#111F38', darkBorder: '#1E3A8A', darkText: '#93C5FD' },
   { color: '#059669', name: 'Emerald', border: '#A7F3D0', bg: '#ECFDF5', text: '#065F46', darkBg: '#0E261E', darkBorder: '#064E3B', darkText: '#6EE7B7' },
@@ -77,29 +88,16 @@ export const GROUP_PALETTE: GroupColorTheme[] = [
   { color: '#0284C7', name: 'Sky',     border: '#BAE6FD', bg: '#F0F9FF', text: '#075985', darkBg: '#0C2336', darkBorder: '#075985', darkText: '#7DD3FC' },
 ]
 
-const GROUP_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
-
 /**
- * Creates balanced groups dynamically for any group count between 1 and 10.
- * For example, 35 students into 6 groups yields capacities of [6, 6, 6, 6, 6, 5].
+ * Default 6 groups strictly following the 35 participants rules:
+ * Groups A to E: 6 members each
+ * Group F: 5 members
  */
-export function createBalancedGroups(groupCount: number, totalStudents: number): GroupData[] {
-  const count = Math.max(1, Math.min(10, groupCount))
-  const safeTotal = Math.max(1, totalStudents)
-  const baseCapacity = Math.floor(safeTotal / count)
-  const remainder = safeTotal % count
-
-  return Array.from({ length: count }, (_, i) => {
-    const capacity = i < remainder ? baseCapacity + 1 : baseCapacity
-    const label = GROUP_LABELS[i] || `${i + 1}`
-    const palette = GROUP_PALETTE[i % GROUP_PALETTE.length]
-
-    return {
-      id: label,
-      name: `Kelompok ${label}`,
-      capacity: Math.max(1, capacity),
-      color: palette.color,
-      members: [],
-    }
-  })
-}
+export const INITIAL_RULE_GROUPS: GroupData[] = [
+  { id: 'A', name: 'Kelompok A', capacity: 6, color: GROUP_PALETTE[0].color, members: [] },
+  { id: 'B', name: 'Kelompok B', capacity: 6, color: GROUP_PALETTE[1].color, members: [] },
+  { id: 'C', name: 'Kelompok C', capacity: 6, color: GROUP_PALETTE[2].color, members: [] },
+  { id: 'D', name: 'Kelompok D', capacity: 6, color: GROUP_PALETTE[3].color, members: [] },
+  { id: 'E', name: 'Kelompok E', capacity: 6, color: GROUP_PALETTE[4].color, members: [] },
+  { id: 'F', name: 'Kelompok F', capacity: 5, color: GROUP_PALETTE[5].color, members: [] },
+]
