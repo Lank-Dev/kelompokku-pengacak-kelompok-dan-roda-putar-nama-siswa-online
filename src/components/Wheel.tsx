@@ -55,13 +55,13 @@ function renderSliceText(
   const maxSafeHeight = Math.max(6.5, arcAtMid * 0.72)
   let fontSize = Math.min(baseFontSize, maxSafeHeight)
 
-  ctx.font = `bold ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
+  ctx.font = `bold ${fontSize}px ui-monospace, "JetBrains Mono", system-ui, -apple-system, sans-serif`
   let textWidth = ctx.measureText(safeText).width
 
   // 3. Step font size down if text is significantly longer than space
   while (fontSize > 7.0 && textWidth > availableRadialLength * 1.25) {
     fontSize -= 0.5
-    ctx.font = `bold ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
+    ctx.font = `bold ${fontSize}px ui-monospace, "JetBrains Mono", system-ui, -apple-system, sans-serif`
     textWidth = ctx.measureText(safeText).width
   }
 
@@ -155,20 +155,42 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
       : ['#2563eb', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6']
 
     if (currentItems.length === 0) {
-      // Empty state
+      // Empty state - Industrial precision dial waiting for input
       ctx.beginPath()
       ctx.arc(cx, cy, radius, 0, 2 * Math.PI)
-      ctx.fillStyle = darkMode ? '#1e293b' : '#f8fafc'
+      ctx.fillStyle = darkMode ? '#0f172a' : '#f8fafc'
       ctx.fill()
-      ctx.lineWidth = 2
-      ctx.strokeStyle = darkMode ? '#475569' : '#cbd5e1'
+      ctx.lineWidth = 1.5
+      ctx.strokeStyle = darkMode ? '#334155' : '#cbd5e1'
       ctx.stroke()
 
-      ctx.fillStyle = darkMode ? '#f1f5f9' : '#334155'
-      ctx.font = 'bold 15px system-ui, sans-serif'
+      // Concentric calibration guide
+      ctx.beginPath()
+      ctx.arc(cx, cy, radius * 0.65, 0, 2 * Math.PI)
+      ctx.lineWidth = 1
+      ctx.strokeStyle = darkMode ? '#1e293b' : '#e2e8f0'
+      ctx.stroke()
+
+      // Crosshairs
+      ctx.beginPath()
+      ctx.moveTo(cx - 24, cy)
+      ctx.lineTo(cx + 24, cy)
+      ctx.moveTo(cx, cy - 24)
+      ctx.lineTo(cx, cy + 24)
+      ctx.lineWidth = 1
+      ctx.strokeStyle = darkMode ? '#475569' : '#94a3b8'
+      ctx.stroke()
+
+      // Technical label
+      ctx.fillStyle = darkMode ? '#f1f5f9' : '#0f172a'
+      ctx.font = 'bold 13px ui-monospace, "JetBrains Mono", monospace'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText(emptyLabel || 'Masukkan Nama', cx, cy)
+      ctx.fillText(emptyLabel || 'MASUKKAN NAMA', cx, cy - 8)
+
+      ctx.fillStyle = darkMode ? '#64748b' : '#64748b'
+      ctx.font = 'bold 10px ui-monospace, "JetBrains Mono", monospace'
+      ctx.fillText('[ MENUNGGU INPUT ]', cx, cy + 12)
       return
     }
 
@@ -177,27 +199,28 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     const rot = rotationRef.current
     const hubRadius = Math.max(34, Math.min(48, radius * 0.20))
 
-    // 1. Outer drop shadow
+    // 1. Machined Outer Rim Bezel (Flat, crisp, zero floating shadows)
     ctx.save()
+    // Outer collar fill
     ctx.beginPath()
-    ctx.arc(cx, cy, radius + 4, 0, 2 * Math.PI)
-    ctx.fillStyle = darkMode ? '#0f172a' : '#ffffff'
-    ctx.shadowColor = darkMode ? 'rgba(0, 0, 0, 0.65)' : 'rgba(15, 23, 42, 0.12)'
-    ctx.shadowBlur = 16
-    ctx.shadowOffsetY = 4
+    ctx.arc(cx, cy, radius + 5, 0, 2 * Math.PI)
+    ctx.fillStyle = darkMode ? '#020617' : '#f8fafc'
     ctx.fill()
-    ctx.restore()
 
-    // 2. Outer rim border
-    ctx.save()
+    // Outer boundary stroke
+    ctx.lineWidth = 1.5
+    ctx.strokeStyle = darkMode ? '#334155' : '#cbd5e1'
+    ctx.stroke()
+
+    // Inner rim groove
     ctx.beginPath()
-    ctx.arc(cx, cy, radius + 4, 0, 2 * Math.PI)
-    ctx.lineWidth = 5
-    ctx.strokeStyle = darkMode ? '#334155' : '#e2e8f0'
+    ctx.arc(cx, cy, radius + 1, 0, 2 * Math.PI)
+    ctx.lineWidth = 1
+    ctx.strokeStyle = darkMode ? '#1e293b' : '#e2e8f0'
     ctx.stroke()
     ctx.restore()
 
-    // 3. Slices Divider Stroke Configuration
+    // 2. Slices Divider Stroke Configuration
     let dividerWidth = 1.5
     let showDivider = true
     if (total > 120) {
@@ -212,7 +235,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
     const outerTextR = radius - 8
     const availableRadialLength = Math.max(40, outerTextR - innerTextR)
 
-    // 4. Draw Slices & Radial Text
+    // 3. Draw Slices & Radial Text
     for (let i = 0; i < total; i++) {
       const startAngle = rot + i * sliceAngle
       const endAngle = startAngle + sliceAngle
@@ -228,7 +251,7 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
 
       if (showDivider) {
         ctx.lineWidth = dividerWidth
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)'
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)'
         ctx.stroke()
       }
       ctx.restore()
@@ -257,106 +280,148 @@ export const Wheel = forwardRef<WheelHandle, WheelProps>(function Wheel(
       ctx.restore()
     }
 
-    // 5. Perimeter Pegs (Rivets for tactile mechanical feel)
+    // 4. Perimeter Mechanical Rivets (Precision metallic studs)
     const pegCount = Math.min(Math.max(total, 12), 36)
     const pegAngleStep = (2 * Math.PI) / pegCount
     for (let p = 0; p < pegCount; p++) {
       const pAngle = rot + p * pegAngleStep
-      const px = cx + Math.cos(pAngle) * (radius + 1)
-      const py = cy + Math.sin(pAngle) * (radius + 1)
+      const px = cx + Math.cos(pAngle) * (radius + 2.5)
+      const py = cy + Math.sin(pAngle) * (radius + 2.5)
 
       ctx.save()
       ctx.beginPath()
-      ctx.arc(px, py, 2.5, 0, 2 * Math.PI)
-      ctx.fillStyle = darkMode ? '#f8fafc' : '#1e293b'
-      ctx.shadowColor = 'rgba(0,0,0,0.35)'
-      ctx.shadowBlur = 2
+      ctx.arc(px, py, 1.8, 0, 2 * Math.PI)
+      ctx.fillStyle = darkMode ? '#94a3b8' : '#475569'
       ctx.fill()
+      ctx.lineWidth = 0.6
+      ctx.strokeStyle = darkMode ? '#0f172a' : '#ffffff'
+      ctx.stroke()
       ctx.restore()
     }
 
-    // 6. Center Hub with High-Contrast Finish
+    // 5. Center Hub - Precision Mechanical Turret
     ctx.save()
-    // Hub shadow
+    // Outer hub bezel
     ctx.beginPath()
     ctx.arc(cx, cy, hubRadius, 0, 2 * Math.PI)
-    ctx.fillStyle = darkMode ? '#0f172a' : '#ffffff'
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.25)'
-    ctx.shadowBlur = 10
-    ctx.shadowOffsetY = 2
+    ctx.fillStyle = darkMode ? '#0b1120' : '#f1f5f9'
     ctx.fill()
-
-    // Hub outer border
-    ctx.beginPath()
-    ctx.arc(cx, cy, hubRadius, 0, 2 * Math.PI)
-    ctx.strokeStyle = hoverCenter && !isSpinningNow ? '#2563eb' : darkMode ? '#60a5fa' : '#334155'
-    ctx.lineWidth = 3.5
+    ctx.lineWidth = 1.5
+    ctx.strokeStyle = hoverCenter && !isSpinningNow ? '#2563eb' : darkMode ? '#475569' : '#94a3b8'
     ctx.stroke()
 
-    // Hub face
+    // Inner push-button face
     ctx.beginPath()
-    ctx.arc(cx, cy, hubRadius - 3.5, 0, 2 * Math.PI)
+    ctx.arc(cx, cy, hubRadius - 3, 0, 2 * Math.PI)
     ctx.fillStyle = darkMode
       ? hoverCenter && !isSpinningNow
-        ? '#1e3a8a'
-        : '#1e293b'
+        ? '#1d4ed8'
+        : '#0f172a'
       : hoverCenter && !isSpinningNow
-      ? '#eff6ff'
+      ? '#2563eb'
       : '#ffffff'
     ctx.fill()
+    ctx.lineWidth = 1
+    ctx.strokeStyle = darkMode ? '#1e293b' : '#cbd5e1'
+    ctx.stroke()
+
+    // Concentric calibration ring
+    ctx.beginPath()
+    ctx.arc(cx, cy, hubRadius - 6, 0, 2 * Math.PI)
+    ctx.lineWidth = 0.75
+    ctx.strokeStyle = hoverCenter && !isSpinningNow
+      ? 'rgba(255,255,255,0.35)'
+      : darkMode
+      ? 'rgba(255,255,255,0.08)'
+      : 'rgba(0,0,0,0.08)'
+    ctx.stroke()
 
     // Center button text
-    ctx.fillStyle = hoverCenter && !isSpinningNow ? '#2563eb' : darkMode ? '#ffffff' : '#0f172a'
+    ctx.fillStyle = hoverCenter && !isSpinningNow
+      ? '#ffffff'
+      : darkMode
+      ? '#f8fafc'
+      : '#0f172a'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-
-    ctx.font = `800 ${Math.max(12, Math.floor(hubRadius * 0.32))}px system-ui, sans-serif`
+    ctx.font = `800 ${Math.max(11, Math.floor(hubRadius * 0.30))}px ui-monospace, "JetBrains Mono", system-ui, sans-serif`
     ctx.fillText('PUTAR', cx, cy)
     ctx.restore()
 
-    // 7. Right-side Pointer / Flapper (At 3 o'clock pointing into the wheel)
+    // 6. Right-side Pointer - Calibrated Precision Gauge Indicator
     const pointerX = cx + radius + 7
     const pointerY = cy
     const flapperDeflection = flapperDeflectionRef.current
 
+    // Fixed mounting bracket on the outer rim
+    ctx.save()
+    ctx.fillStyle = darkMode ? '#1e293b' : '#cbd5e1'
+    ctx.fillRect(pointerX + 3, pointerY - 9, 6, 18)
+    ctx.lineWidth = 1
+    ctx.strokeStyle = darkMode ? '#334155' : '#94a3b8'
+    ctx.strokeRect(pointerX + 3, pointerY - 9, 6, 18)
+    ctx.restore()
+
+    // Articulated pointer needle
     ctx.save()
     ctx.translate(pointerX, pointerY)
     ctx.rotate(flapperDeflection)
 
-    // Shadow
-    ctx.shadowColor = 'rgba(0,0,0,0.35)'
-    ctx.shadowBlur = 8
-    ctx.shadowOffsetX = -2
-    ctx.shadowOffsetY = 2
-
-    // Triangular flapper pointing into the wheel
+    // Needle body - 2-facet machined bevel
+    // Upper facet (illuminated)
     ctx.beginPath()
-    ctx.moveTo(-26, 0)
-    ctx.lineTo(7, -11)
-    ctx.lineTo(11, 0)
-    ctx.lineTo(7, 11)
+    ctx.moveTo(-28, 0)
+    ctx.lineTo(5, -9)
+    ctx.lineTo(8, 0)
     ctx.closePath()
-
-    // Pointer gradient
-    const ptrGrad = ctx.createLinearGradient(-26, 0, 11, 0)
-    ptrGrad.addColorStop(0, '#ef4444')
-    ptrGrad.addColorStop(1, '#b91c1c')
-    ctx.fillStyle = ptrGrad
+    ctx.fillStyle = '#ef4444'
     ctx.fill()
 
-    // Crisp white outline
-    ctx.lineWidth = 2
-    ctx.strokeStyle = '#ffffff'
+    // Lower facet (shaded)
+    ctx.beginPath()
+    ctx.moveTo(-28, 0)
+    ctx.lineTo(8, 0)
+    ctx.lineTo(5, 9)
+    ctx.closePath()
+    ctx.fillStyle = '#b91c1c'
+    ctx.fill()
+
+    // Outer crisp perimeter line
+    ctx.beginPath()
+    ctx.moveTo(-28, 0)
+    ctx.lineTo(5, -9)
+    ctx.lineTo(8, 0)
+    ctx.lineTo(5, 9)
+    ctx.closePath()
+    ctx.lineWidth = 1.2
+    ctx.strokeStyle = darkMode ? '#ffffff' : '#0f172a'
     ctx.stroke()
 
-    // Pivot pin
+    // Center ridge line
     ctx.beginPath()
-    ctx.arc(6, 0, 3, 0, 2 * Math.PI)
+    ctx.moveTo(-28, 0)
+    ctx.lineTo(8, 0)
+    ctx.lineWidth = 0.8
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)'
+    ctx.stroke()
+
+    // Mechanical pivot screw pin
+    ctx.beginPath()
+    ctx.arc(4, 0, 3.2, 0, 2 * Math.PI)
     ctx.fillStyle = '#f59e0b'
     ctx.fill()
-    ctx.lineWidth = 1
-    ctx.strokeStyle = '#ffffff'
+    ctx.lineWidth = 0.8
+    ctx.strokeStyle = '#0f172a'
     ctx.stroke()
+
+    // Screw slot
+    ctx.beginPath()
+    ctx.moveTo(2, -1.5)
+    ctx.lineTo(6, 1.5)
+    ctx.lineWidth = 0.8
+    ctx.strokeStyle = '#78350f'
+    ctx.stroke()
+
     ctx.restore()
   }, [items, colors, isSpinning, hoverCenter, darkMode, emptyLabel])
 

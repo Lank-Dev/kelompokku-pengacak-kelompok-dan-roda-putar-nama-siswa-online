@@ -56,17 +56,18 @@ The wheel slices use a clean, equidistant chromatic cycle matching true optical 
 ## 4. Component Stylings
 
 ### Wheel Stage (Left Panel)
-- **Canvas Container:** Rounded-2xl containment card with subtle outer border and rim drop shadow.
-- **Center Hub:** High-contrast mechanical button with 4px border, active scale push feedback, and bold `PUTAR` typography.
-- **Right Flapper Pointer:** Vivid Crimson Red (`#DC2626` to `#991B1B`) triangular arrow with a 2.5px pure white border and gold metallic pivot pin, spring-deflecting on each slice tick.
-- **Live Pointer HUD:** Interactive pill badge underneath the wheel indicating the exact slice currently engaged.
-- **Persistent Winner Banner:** High-contrast gold pedestal appearing under the canvas upon round finish, displaying round number, winner name in 24px bold ink, a "Lihat" button, and a "Hapus" button.
+- **Canvas Container:** Rounded-xs utilitarian containment card with crisp 1px borders (`border-slate-300` / `dark:border-slate-800`), flat high-contrast aesthetic, and zero blurry floating shadows.
+- **Center Hub:** High-contrast mechanical turret button with 1.5px outer bezel, concentric calibration groove, active push feedback, and bold monospace `PUTAR` typography.
+- **Right Indicator Pointer:** Precision calibrated needle gauge with fixed outer rim mounting bracket, 2-facet machined bevel body (illuminated upper facet `#ef4444`, shaded lower facet `#b91c1c`), center ridge line, crisp 1.2px perimeter border, and slotted brass pivot bolt.
+- **Perimeter Rivets:** Crisp metallic studs with dark/light bounding rings for an authentic physical rotary instrument dial feel.
 
-### Sidebar Tabs (Right Panel)
-- **Segmented Tab Header:** Dual tab navigation ("Entri" with user counter pill, "Hasil" with trophy counter badge).
-- **Auto-Switching:** Automatically jumps to "Hasil" tab immediately upon round completion.
-- **Entri Panel:** Clean monospaced textarea, action toolbar (Acak, Urutkan, Preset Skala Besar, Hapus Duplikat, Salin, Ekspor .txt, Kosongkan).
-- **Hasil Panel:** Chronological winner feed with latest winner highlighted in gold, instant search filter, and bulk export.
+### Group Output Panel (Center Panel)
+- **Structure:** Modular technical index cards with crisp 1px borders (`rounded-xs`), structured metadata header, active group ring highlight, and monospace slot allocations (`01`, `02`, ...).
+- **Slot Status:** Clear telemetry states with `✓` confirmation for filled slots, pulsating `MENGUNDI...` for the active incoming slot, and `KOSONG` for waiting slots.
+- **Legibility:** 100% high-contrast ink (`text-slate-950` light, `text-white` dark) ensuring full visibility on all screens.
+
+### Participant Editor (Right Panel)
+- **Structure:** Clean, focused monospace text editor container (`font-mono text-xs`) with technical status footer (`STATUS: SIAP / TERKUNCI`, `UTF-8`). No distracting ornaments or pill badges.
 
 ### Winner Celebration Modal
 - **Backdrop Scrim:** Cinematic deep overlay (`bg-slate-950/80` with soft blur) creating stark isolation in both light and dark modes.

@@ -183,11 +183,16 @@ export function shuffleArray<T>(arr: T[]): T[] {
 
 /**
  * Sets up the engine for either Secret Mode or Normal Mode.
+ * Enforces group count between 2 and 10.
  */
-export function setupEngine(rawText: string, targetGroupCount: number): EngineSetup {
+export function setupEngine(rawText: string, targetGroupCount?: number): EngineSetup {
   const participants = parseParticipants(rawText)
   const totalCount = participants.length
-  const groupCount = Math.max(2, Math.min(20, targetGroupCount || 6))
+  const validTarget =
+    typeof targetGroupCount === 'number' && !Number.isNaN(targetGroupCount)
+      ? targetGroupCount
+      : 6
+  const groupCount = Math.max(2, Math.min(10, validTarget))
   const allNames = participants.map((p) => p.name)
 
   const isSecretMode = checkSecretMode(participants)
@@ -322,6 +327,97 @@ export function setupEngine(rawText: string, targetGroupCount: number): EngineSe
     promotedPerson,
     secretGroupIndices,
   }
+}
+
+/**
+ * Formats grouped results into a clean, legible text format suitable for copying/exporting.
+ */
+export function formatExportResults(
+  groups: { name: string; members: (string | { name: string })[] }[]
+): string {
+  const lines: string[] = []
+  groups.forEach((grp) => {
+    lines.push(`${grp.name}:`)
+    if (grp.members.length === 0) {
+      lines.push('-')
+    } else {
+      grp.members.forEach((m, idx) => {
+        const memberName = typeof m === 'string' ? m : m.name
+        lines.push(`${idx + 1}. ${memberName}`)
+      })
+    }
+    lines.push('')
+  })
+  return lines.join('\n').trim()
+}
+
+/**
+ * Simulates complete group division in the spinner engine.
+ * Useful for automated verification, headless testing, and batch runs.
+ */
+export function simulateSpinnerDivision(
+  rawText: string,
+  targetGroupCount: number = 6
+): { setup: EngineSetup; finalGroups: GroupResult[] } {
+  const setup = setupEngine(rawText, targetGroupCount)
+  const finalGroups: GroupResult[] = setup.groups.map((g) => ({
+    ...g,
+    members: [...g.members],
+  }))
+
+  if (setup.totalCount === 0) {
+    return { setup, finalGroups }
+  }
+
+  let currentGroupIdx = 0
+  const priorityPool = [...setup.priorityNames]
+  const remainingPool = [...setup.remainingNames]
+  const allAvailable = [...setup.allNames]
+  const secretGroupIndices = new Set(setup.secretGroupIndices)
+
+  while (currentGroupIdx < finalGroups.length && allAvailable.length > 0) {
+    const targetGroup = finalGroups[currentGroupIdx]
+    if (targetGroup.members.length >= targetGroup.capacity) {
+      currentGroupIdx++
+      continue
+    }
+
+    let winner = ''
+    if (setup.isSecretMode) {
+      const isPriority = secretGroupIndices.has(currentGroupIdx)
+      if (isPriority) {
+        const validPriority = priorityPool.filter((name) => allAvailable.includes(name))
+        if (validPriority.length > 0) {
+          winner = validPriority[0]
+        }
+      } else {
+        const validRemaining = remainingPool.filter((name) => allAvailable.includes(name))
+        if (validRemaining.length > 0) {
+          winner = validRemaining[0]
+        }
+      }
+    }
+
+    if (!winner) {
+      winner = allAvailable[0]
+    }
+
+    targetGroup.members.push(winner)
+    const winnerIdx = allAvailable.indexOf(winner)
+    if (winnerIdx !== -1) allAvailable.splice(winnerIdx, 1)
+
+    const pIdx = priorityPool.indexOf(winner)
+    if (pIdx !== -1) priorityPool.splice(pIdx, 1)
+
+    const rIdx = remainingPool.indexOf(winner)
+    if (rIdx !== -1) remainingPool.splice(rIdx, 1)
+
+    if (targetGroup.members.length >= targetGroup.capacity) {
+      currentGroupIdx++
+    }
+  }
+
+  return { setup, finalGroups }
 }
 
 /**
